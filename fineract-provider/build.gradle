@@ -144,7 +144,7 @@ import groovy.sql.Sql
 
 project.ext.mysqlUser='root'
 project.ext.mysqlPassword='mysql'
-project.ext.pgUser='root'
+project.ext.pgUser='postgres'
 project.ext.pgPassword='Soptle@123456'
 
 configurations {
