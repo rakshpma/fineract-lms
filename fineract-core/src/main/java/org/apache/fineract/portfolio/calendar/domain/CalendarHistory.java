@@ -25,10 +25,11 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDate;
 import org.apache.fineract.infrastructure.core.domain.AbstractPersistableCustom;
+import org.apache.fineract.infrastructure.core.service.DateUtils;
 
 @Entity
 @Table(name = "m_calendar_history")
-public class CalendarHistory extends AbstractPersistableCustom {
+public class CalendarHistory extends AbstractPersistableCustom<Long> {
 
     @ManyToOne(optional = false)
     @JoinColumn(name = "calendar_id", referencedColumnName = "id", nullable = false)
@@ -95,26 +96,24 @@ public class CalendarHistory extends AbstractPersistableCustom {
         return this.recurrence;
     }
 
-    public LocalDate getStartDateLocalDate() {
+    public LocalDate getStartDate() {
         return this.startDate;
     }
 
-    public LocalDate getEndDateLocalDate() {
+    public LocalDate getEndDate() {
         return this.endDate;
     }
 
-    public boolean isEndDateAfterOrEqual(final LocalDate compareDate) {
-        return this.endDate != null && compareDate != null
-                && (getEndDateLocalDate().isAfter(compareDate) || getEndDateLocalDate().isEqual(compareDate));
+    public boolean isStartDateBeforeOrEqual(final LocalDate compareDate) {
+        return this.startDate != null && compareDate != null && !DateUtils.isAfter(this.startDate, compareDate);
     }
 
-    public boolean isStartDateBeforeOrEqual(final LocalDate compareDate) {
-        return this.startDate != null && compareDate != null
-                && (getStartDateLocalDate().isBefore(compareDate) || getStartDateLocalDate().equals(compareDate));
+    public boolean isEndDateAfterOrEqual(final LocalDate compareDate) {
+        return this.endDate != null && compareDate != null && !DateUtils.isBefore(this.endDate, compareDate);
     }
 
     public boolean isBetweenStartAndEndDate(final LocalDate compareDate) {
-        return isStartDateBeforeOrEqual(compareDate) && (getEndDateLocalDate() == null || isEndDateAfterOrEqual(compareDate));
+        return isStartDateBeforeOrEqual(compareDate) && (getEndDate() == null || isEndDateAfterOrEqual(compareDate));
     }
 
     public void updateEndDate(LocalDate historyCalEndDate) {

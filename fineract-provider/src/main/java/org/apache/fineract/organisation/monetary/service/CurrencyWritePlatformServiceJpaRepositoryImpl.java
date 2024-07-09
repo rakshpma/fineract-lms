@@ -24,24 +24,23 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import lombok.RequiredArgsConstructor;
 import org.apache.fineract.infrastructure.core.api.JsonCommand;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResultBuilder;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.organisation.monetary.domain.ApplicationCurrency;
 import org.apache.fineract.organisation.monetary.domain.ApplicationCurrencyRepositoryWrapper;
+import org.apache.fineract.organisation.monetary.domain.OrganisationCurrency;
+import org.apache.fineract.organisation.monetary.domain.OrganisationCurrencyRepository;
 import org.apache.fineract.organisation.monetary.exception.CurrencyInUseException;
 import org.apache.fineract.organisation.monetary.serialization.CurrencyCommandFromApiJsonDeserializer;
-import org.apache.fineract.organisation.office.domain.OrganisationCurrency;
-import org.apache.fineract.organisation.office.domain.OrganisationCurrencyRepository;
 import org.apache.fineract.portfolio.charge.service.ChargeReadPlatformService;
 import org.apache.fineract.portfolio.loanproduct.service.LoanProductReadPlatformService;
 import org.apache.fineract.portfolio.savings.service.SavingsProductReadPlatformService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-@Service
+@RequiredArgsConstructor
 public class CurrencyWritePlatformServiceJpaRepositoryImpl implements CurrencyWritePlatformService {
 
     private final PlatformSecurityContext context;
@@ -51,21 +50,6 @@ public class CurrencyWritePlatformServiceJpaRepositoryImpl implements CurrencyWr
     private final LoanProductReadPlatformService loanProductService;
     private final SavingsProductReadPlatformService savingsProductService;
     private final ChargeReadPlatformService chargeService;
-
-    @Autowired
-    public CurrencyWritePlatformServiceJpaRepositoryImpl(final PlatformSecurityContext context,
-            final CurrencyCommandFromApiJsonDeserializer fromApiJsonDeserializer,
-            final ApplicationCurrencyRepositoryWrapper applicationCurrencyRepository,
-            final OrganisationCurrencyRepository organisationCurrencyRepository, final LoanProductReadPlatformService loanProductService,
-            final SavingsProductReadPlatformService savingsProductService, final ChargeReadPlatformService chargeService) {
-        this.context = context;
-        this.fromApiJsonDeserializer = fromApiJsonDeserializer;
-        this.applicationCurrencyRepository = applicationCurrencyRepository;
-        this.organisationCurrencyRepository = organisationCurrencyRepository;
-        this.loanProductService = loanProductService;
-        this.savingsProductService = savingsProductService;
-        this.chargeService = chargeService;
-    }
 
     @Transactional
     @Override

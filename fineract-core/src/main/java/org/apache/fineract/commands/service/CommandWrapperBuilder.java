@@ -18,6 +18,7 @@
  */
 package org.apache.fineract.commands.service;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.fineract.commands.domain.CommandWrapper;
 import org.apache.fineract.infrastructure.accountnumberformat.service.AccountNumberFormatConstants;
 import org.apache.fineract.portfolio.client.api.ClientApiConstants;
@@ -47,6 +48,7 @@ public class CommandWrapperBuilder {
     private String jobName;
     private String idempotencyKey;
 
+    @SuppressFBWarnings(value = "UWF_UNWRITTEN_FIELD", justification = "TODO: fix this!")
     public CommandWrapper build() {
         return new CommandWrapper(this.officeId, this.groupId, this.clientId, this.loanId, this.savingsId, this.actionName, this.entityName,
                 this.entityId, this.subentityId, this.href, this.json, this.transactionId, this.productId, this.templateId,
@@ -737,7 +739,6 @@ public class CommandWrapperBuilder {
     }
 
     private void commonDatatableSettings(final String datatable, final Long apptableId, final Long datatableId) {
-
         this.entityName = datatable;
         this.entityId = apptableId;
         this.subentityId = datatableId;
@@ -838,6 +839,15 @@ public class CommandWrapperBuilder {
         this.entityId = null;
         this.loanId = loanId;
         this.href = "/loans/" + loanId + "/transactions/template?command=goodwillcredit";
+        return this;
+    }
+
+    public CommandWrapperBuilder loanInterestPaymentWaiverTransaction(final Long loanId) {
+        this.actionName = "INTERESTPAYMENTWAIVER";
+        this.entityName = "LOAN";
+        this.entityId = null;
+        this.loanId = loanId;
+        this.href = "/loans/" + loanId + "/transactions/template?command=interestpaymentwaiver";
         return this;
     }
 
@@ -1131,6 +1141,15 @@ public class CommandWrapperBuilder {
 
     public CommandWrapperBuilder disburseLoanToSavingsApplication(final Long loanId) {
         this.actionName = "DISBURSETOSAVINGS";
+        this.entityName = "LOAN";
+        this.entityId = loanId;
+        this.loanId = loanId;
+        this.href = "/loans/" + loanId;
+        return this;
+    }
+
+    public CommandWrapperBuilder disburseWithoutAutoDownPayment(final Long loanId) {
+        this.actionName = "DISBURSEWITHOUTAUTODOWNPAYMENT";
         this.entityName = "LOAN";
         this.entityId = loanId;
         this.loanId = loanId;
@@ -3652,6 +3671,47 @@ public class CommandWrapperBuilder {
         this.entityName = "LOAN";
         this.loanId = loanId;
         this.href = "/loans/" + loanId + "/transactions?command=downPayment";
+        return this;
+    }
+
+    public CommandWrapperBuilder reAge(final Long loanId) {
+        this.actionName = "REAGE";
+        this.entityName = "LOAN";
+        this.loanId = loanId;
+        this.href = "/loans/" + loanId + "/transactions?command=reAge";
+        return this;
+    }
+
+    public CommandWrapperBuilder undoReAge(final Long loanId) {
+        this.actionName = "UNDO_REAGE";
+        this.entityName = "LOAN";
+        this.loanId = loanId;
+        this.href = "/loans/" + loanId + "/transactions?command=undoReAge";
+        return this;
+    }
+
+    public CommandWrapperBuilder reAmortize(final Long loanId) {
+        this.actionName = "REAMORTIZE";
+        this.entityName = "LOAN";
+        this.loanId = loanId;
+        this.href = "/loans/" + loanId + "/transactions?command=reAmortize";
+        return this;
+    }
+
+    public CommandWrapperBuilder undoReAmortize(final Long loanId) {
+        this.actionName = "UNDO_REAMORTIZE";
+        this.entityName = "LOAN";
+        this.loanId = loanId;
+        this.href = "/loans/" + loanId + "/transactions?command=undoReAmortize";
+        return this;
+    }
+
+    public CommandWrapperBuilder createDelinquencyAction(final Long loanId) {
+        this.actionName = "CREATE";
+        this.entityName = "DELINQUENCY_ACTION";
+        this.entityId = null;
+        this.loanId = loanId;
+        this.href = "/loans/" + loanId + "/delinquency-action";
         return this;
     }
 }

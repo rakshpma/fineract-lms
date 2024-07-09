@@ -19,6 +19,9 @@
 package org.apache.fineract.integrationtests.common;
 
 import static io.restassured.RestAssured.given;
+import static java.time.temporal.ChronoUnit.DAYS;
+import static java.time.temporal.ChronoUnit.MONTHS;
+import static java.time.temporal.ChronoUnit.WEEKS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -42,6 +45,7 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
@@ -61,7 +65,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.fineract.infrastructure.core.service.DateUtils;
+import org.apache.fineract.integrationtests.ConfigProperties;
 import org.apache.http.conn.HttpHostConnectException;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -73,7 +80,7 @@ import org.slf4j.LoggerFactory;
 public final class Utils {
 
     public static final String TENANT_PARAM_NAME = "tenantIdentifier";
-    public static final String DEFAULT_TENANT = "default";
+    public static final String DEFAULT_TENANT = ConfigProperties.Backend.TENANT;
     public static final String TENANT_IDENTIFIER = TENANT_PARAM_NAME + '=' + DEFAULT_TENANT;
     private static final String LOGIN_URL = "/fineract-provider/api/v1/authentication?" + TENANT_IDENTIFIER;
     public static final String TENANT_TIME_ZONE = "Asia/Kolkata";
@@ -92,13 +99,11 @@ public final class Utils {
     public static final String SOURCE_SET_NUMBERS_AND_LETTERS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     public static final String SOURCE_SET_NUMBERS = "1234567890";
 
-    private Utils() {
-
-    }
+    private Utils() {}
 
     public static void initializeRESTAssured() {
-        RestAssured.baseURI = "https://localhost";
-        RestAssured.port = 8443;
+        RestAssured.baseURI = ConfigProperties.Backend.PROTOCOL + "://" + ConfigProperties.Backend.HOST;
+        RestAssured.port = ConfigProperties.Backend.PORT;
         RestAssured.keyStore("src/main/resources/keystore.jks", "openmf");
         RestAssured.useRelaxedHTTPSValidation();
     }
@@ -172,7 +177,7 @@ public final class Utils {
     }
 
     public static String loginIntoServerAndGetBase64EncodedAuthenticationKey() {
-        return loginIntoServerAndGetBase64EncodedAuthenticationKey("mifos", "password");
+        return loginIntoServerAndGetBase64EncodedAuthenticationKey(ConfigProperties.Backend.USERNAME, ConfigProperties.Backend.PASSWORD);
     }
 
     public static String loginIntoServerAndGetBase64EncodedAuthenticationKey(String username, String password) {
@@ -216,6 +221,16 @@ public final class Utils {
         return (T) JsonPath.from(json).get(jsonAttributeToGetBack);
     }
 
+    public static <T> T performServerPatch(final RequestSpecification requestSpec, final ResponseSpecification responseSpec,
+            final String getURL, final String jsonAttributeToGetBack) {
+        final String json = given().spec(requestSpec).expect().spec(responseSpec).log().ifError().when().patch(getURL).andReturn()
+                .asString();
+        if (jsonAttributeToGetBack == null) {
+            return (T) json;
+        }
+        return (T) JsonPath.from(json).get(jsonAttributeToGetBack);
+    }
+
     public static List<String> performServerGetList(final RequestSpecification requestSpec, final ResponseSpecification responseSpec,
             final String getURL, final String jsonAttributeToGetBack) {
         final JsonPath jsonPath = given().spec(requestSpec).expect().spec(responseSpec).log().ifError().when().get(getURL).jsonPath();
@@ -248,8 +263,11 @@ public final class Utils {
     public static <T> T performServerPost(final RequestSpecification requestSpec, final ResponseSpecification responseSpec,
             final String postURL, final String jsonBodyToSend, final String jsonAttributeToGetBack) {
         LOG.info("JSON {}", jsonBodyToSend);
-        final String json = given().spec(requestSpec).body(jsonBodyToSend).expect().spec(responseSpec).log().ifError().when().post(postURL)
-                .andReturn().asString();
+        RequestSpecification spec = given().spec(requestSpec);
+        if (StringUtils.isNotBlank(jsonBodyToSend)) {
+            spec = spec.body(jsonBodyToSend);
+        }
+        final String json = spec.expect().spec(responseSpec).log().ifError().when().post(postURL).andReturn().asString();
         if (jsonAttributeToGetBack == null) {
             return (T) json;
         }
@@ -280,6 +298,9 @@ public final class Utils {
             final String deleteURL, final String jsonAttributeToGetBack) {
         final String json = given().spec(requestSpec).expect().spec(responseSpec).log().ifError().when().delete(deleteURL).andReturn()
                 .asString();
+        if (jsonAttributeToGetBack == null) {
+            return (T) json;
+        }
         return (T) JsonPath.from(json).get(jsonAttributeToGetBack);
     }
 
@@ -374,6 +395,17 @@ public final class Utils {
         return dateFormat.format(dateToBeConvert.getTime());
     }
 
+    @NotNull
+    public static OffsetDateTime getAuditDateTimeToCompare() throws InterruptedException {
+        OffsetDateTime now = DateUtils.getAuditOffsetDateTime();
+        // Testing in minutes precision, but still need to take care around the end of the actual minute
+        if (now.getSecond() > 56) {
+            Thread.sleep(5000);
+            now = DateUtils.getAuditOffsetDateTime();
+        }
+        return now;
+    }
+
     public static TimeZone getTimeZoneOfTenant() {
         return TimeZone.getTimeZone(TENANT_TIME_ZONE);
     }
@@ -384,6 +416,10 @@ public final class Utils {
 
     public static LocalDate getLocalDateOfTenant() {
         return LocalDate.now(getZoneIdOfTenant());
+    }
+
+    public static LocalDateTime getLocalDateTimeOfTenant() {
+        return LocalDateTime.now(getZoneIdOfTenant());
     }
 
     public static Date convertJsonElementAsDate(JsonElement jsonElement) {
@@ -497,5 +533,17 @@ public final class Utils {
 
     public static LocalDate getDateAsLocalDate(String dateAsString) {
         return LocalDate.parse(dateAsString, dateFormatter);
+    }
+
+    public static long getDifferenceInDays(final LocalDate localDateBefore, final LocalDate localDateAfter) {
+        return DAYS.between(localDateBefore, localDateAfter);
+    }
+
+    public static long getDifferenceInWeeks(final LocalDate localDateBefore, final LocalDate localDateAfter) {
+        return WEEKS.between(localDateBefore, localDateAfter);
+    }
+
+    public static long getDifferenceInMonths(final LocalDate localDateBefore, final LocalDate localDateAfter) {
+        return MONTHS.between(localDateBefore, localDateAfter);
     }
 }

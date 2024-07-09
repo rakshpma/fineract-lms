@@ -41,6 +41,8 @@ import java.util.List;
 import java.util.Locale;
 import org.apache.fineract.client.models.PostPaymentTypesRequest;
 import org.apache.fineract.client.models.PostPaymentTypesResponse;
+import org.apache.fineract.infrastructure.businessdate.domain.BusinessDateType;
+import org.apache.fineract.integrationtests.common.BusinessDateHelper;
 import org.apache.fineract.integrationtests.common.ClientHelper;
 import org.apache.fineract.integrationtests.common.CommonConstants;
 import org.apache.fineract.integrationtests.common.GlobalConfigurationHelper;
@@ -631,161 +633,181 @@ public class ClientSavingsIntegrationTest {
     @SuppressWarnings("unchecked")
     @Test
     public void testSavingsAccountCharges() {
+        Integer savingsId = null;
+        try {
+            GlobalConfigurationHelper.updateIsBusinessDateEnabled(requestSpec, responseSpec, Boolean.TRUE);
 
-        final ResponseSpecification erroResponseSpec = new ResponseSpecBuilder().build();
-        this.savingsAccountHelper = new SavingsAccountHelper(this.requestSpec, this.responseSpec);
-        final SavingsAccountHelper validationErrorHelper = new SavingsAccountHelper(this.requestSpec, erroResponseSpec);
+            LocalDate submittedDate = LocalDate.of(2022, 9, 28);
+            String submittedDateString = "28 September 2022";
+            BusinessDateHelper.updateBusinessDate(requestSpec, responseSpec, BusinessDateType.BUSINESS_DATE, submittedDate);
 
-        final Integer clientID = ClientHelper.createClient(this.requestSpec, this.responseSpec);
-        ClientHelper.verifyClientCreatedOnServer(this.requestSpec, this.responseSpec, clientID);
-        // Assertions.assertNotNull(clientID);
-        final String minBalanceForInterestCalculation = null;
-        final String minRequiredBalance = null;
-        final String enforceMinRequiredBalance = "false";
-        final boolean allowOverdraft = false;
-        final Integer savingsProductID = createSavingsProduct(this.requestSpec, this.responseSpec, MINIMUM_OPENING_BALANCE,
-                minBalanceForInterestCalculation, minRequiredBalance, enforceMinRequiredBalance, allowOverdraft);
-        Assertions.assertNotNull(savingsProductID);
+            final ResponseSpecification erroResponseSpec = new ResponseSpecBuilder().build();
+            this.savingsAccountHelper = new SavingsAccountHelper(this.requestSpec, this.responseSpec);
+            final SavingsAccountHelper validationErrorHelper = new SavingsAccountHelper(this.requestSpec, erroResponseSpec);
 
-        Assertions.assertNotNull(savingsProductID);
-        final Integer savingsId = this.savingsAccountHelper.applyForSavingsApplication(clientID, savingsProductID, ACCOUNT_TYPE_INDIVIDUAL);
+            final Integer clientID = ClientHelper.createClient(this.requestSpec, this.responseSpec);
+            ClientHelper.verifyClientCreatedOnServer(this.requestSpec, this.responseSpec, clientID);
+            // Assertions.assertNotNull(clientID);
+            final String minBalanceForInterestCalculation = null;
+            final String minRequiredBalance = null;
+            final String enforceMinRequiredBalance = "false";
+            final boolean allowOverdraft = false;
+            final Integer savingsProductID = createSavingsProduct(this.requestSpec, this.responseSpec, MINIMUM_OPENING_BALANCE,
+                    minBalanceForInterestCalculation, minRequiredBalance, enforceMinRequiredBalance, allowOverdraft);
+            Assertions.assertNotNull(savingsProductID);
 
-        HashMap savingsStatusHashMap = SavingsStatusChecker.getStatusOfSavings(this.requestSpec, this.responseSpec, savingsId);
-        SavingsStatusChecker.verifySavingsIsPending(savingsStatusHashMap);
+            Assertions.assertNotNull(savingsProductID);
+            savingsId = this.savingsAccountHelper.applyForSavingsApplicationOnDate(clientID, savingsProductID, ACCOUNT_TYPE_INDIVIDUAL,
+                    submittedDateString);
 
-        final Integer withdrawalChargeId = ChargesHelper.createCharges(this.requestSpec, this.responseSpec,
-                ChargesHelper.getSavingsWithdrawalFeeJSON());
-        Assertions.assertNotNull(withdrawalChargeId);
+            HashMap savingsStatusHashMap = SavingsStatusChecker.getStatusOfSavings(this.requestSpec, this.responseSpec, savingsId);
+            SavingsStatusChecker.verifySavingsIsPending(savingsStatusHashMap);
 
-        this.savingsAccountHelper.addChargesForSavings(savingsId, withdrawalChargeId, false);
-        ArrayList<HashMap> chargesPendingState = this.savingsAccountHelper.getSavingsCharges(savingsId);
-        Assertions.assertEquals(1, chargesPendingState.size());
+            final Integer withdrawalChargeId = ChargesHelper.createCharges(this.requestSpec, this.responseSpec,
+                    ChargesHelper.getSavingsWithdrawalFeeJSON());
+            Assertions.assertNotNull(withdrawalChargeId);
 
-        Integer savingsChargeId = (Integer) chargesPendingState.get(0).get("id");
-        HashMap chargeChanges = this.savingsAccountHelper.updateCharges(savingsChargeId, savingsId);
-        Assertions.assertTrue(chargeChanges.containsKey("amount"));
+            this.savingsAccountHelper.addChargesForSavings(savingsId, withdrawalChargeId, false);
+            ArrayList<HashMap> chargesPendingState = this.savingsAccountHelper.getSavingsCharges(savingsId);
+            Assertions.assertEquals(1, chargesPendingState.size());
 
-        Integer deletedChargeId = this.savingsAccountHelper.deleteCharge(savingsChargeId, savingsId);
-        assertEquals(savingsChargeId, deletedChargeId);
+            Integer savingsChargeId = (Integer) chargesPendingState.get(0).get("id");
+            HashMap chargeChanges = this.savingsAccountHelper.updateCharges(savingsChargeId, savingsId);
+            Assertions.assertTrue(chargeChanges.containsKey("amount"));
 
-        chargesPendingState = this.savingsAccountHelper.getSavingsCharges(savingsId);
-        Assertions.assertTrue(chargesPendingState == null || chargesPendingState.size() == 0);
+            Integer deletedChargeId = this.savingsAccountHelper.deleteCharge(savingsChargeId, savingsId);
+            assertEquals(savingsChargeId, deletedChargeId);
 
-        savingsStatusHashMap = this.savingsAccountHelper.approveSavings(savingsId);
-        SavingsStatusChecker.verifySavingsIsApproved(savingsStatusHashMap);
+            chargesPendingState = this.savingsAccountHelper.getSavingsCharges(savingsId);
+            Assertions.assertTrue(chargesPendingState == null || chargesPendingState.size() == 0);
 
-        savingsStatusHashMap = this.savingsAccountHelper.activateSavings(savingsId);
-        SavingsStatusChecker.verifySavingsIsActive(savingsStatusHashMap);
+            savingsStatusHashMap = this.savingsAccountHelper.approveSavingsOnDate(savingsId, submittedDateString);
+            SavingsStatusChecker.verifySavingsIsApproved(savingsStatusHashMap);
 
-        final Integer chargeId = ChargesHelper.createCharges(this.requestSpec, this.responseSpec, ChargesHelper.getSavingsAnnualFeeJSON());
-        Assertions.assertNotNull(chargeId);
+            savingsStatusHashMap = this.savingsAccountHelper.activateSavings(savingsId, submittedDateString);
+            SavingsStatusChecker.verifySavingsIsActive(savingsStatusHashMap);
 
-        ArrayList<HashMap> charges = this.savingsAccountHelper.getSavingsCharges(savingsId);
-        Assertions.assertTrue(charges == null || charges.size() == 0);
+            final Integer chargeId = ChargesHelper.createCharges(this.requestSpec, this.responseSpec,
+                    ChargesHelper.getSavingsAnnualFeeJSON());
+            Assertions.assertNotNull(chargeId);
 
-        this.savingsAccountHelper.addChargesForSavings(savingsId, chargeId, true);
-        charges = this.savingsAccountHelper.getSavingsCharges(savingsId);
-        Assertions.assertEquals(1, charges.size());
+            ArrayList<HashMap> charges = this.savingsAccountHelper.getSavingsCharges(savingsId);
+            Assertions.assertTrue(charges == null || charges.size() == 0);
 
-        HashMap savingsChargeForPay = charges.get(0);
-        Integer annualSavingsChargeId = (Integer) savingsChargeForPay.get("id");
+            this.savingsAccountHelper.addChargesForSavingsWithDueDateAndFeeOnMonthDay(savingsId, chargeId, "10 January 2023", 100,
+                    "15 January");
+            charges = this.savingsAccountHelper.getSavingsCharges(savingsId);
+            Assertions.assertEquals(1, charges.size());
 
-        ArrayList<HashMap> savingsAccountErrorData = (ArrayList<HashMap>) validationErrorHelper.inactivateCharge(annualSavingsChargeId,
-                savingsId, CommonConstants.RESPONSE_ERROR);
-        assertEquals("validation.msg.savingsaccountcharge.inactivation.of.charge.not.allowed.when.charge.is.due",
-                savingsAccountErrorData.get(0).get(CommonConstants.RESPONSE_ERROR_MESSAGE_CODE));
+            HashMap savingsChargeForPay = charges.get(0);
+            Integer annualSavingsChargeId = (Integer) savingsChargeForPay.get("id");
 
-        SimpleDateFormat sdf = new SimpleDateFormat(CommonConstants.DATE_FORMAT, Locale.US);
-        Calendar cal = Calendar.getInstance();
-        List dates = (List) savingsChargeForPay.get("dueDate");
-        cal.set(Calendar.YEAR, (Integer) dates.get(0));
-        cal.set(Calendar.MONTH, (Integer) dates.get(1) - 1);
-        cal.set(Calendar.DAY_OF_MONTH, (Integer) dates.get(2));
-        int n = 0;
-        Calendar current = Calendar.getInstance();
-        while (cal.compareTo(current) < 0) {
-            n++;
-            cal.set(Calendar.YEAR, (Integer) dates.get(0) + n);
-        }
-        cal.set(Calendar.YEAR, (Integer) dates.get(0));
-        cal.set(Calendar.MONTH, (Integer) dates.get(1) - 1);
-        cal.set(Calendar.DAY_OF_MONTH, (Integer) dates.get(2));
+            BusinessDateHelper.updateBusinessDate(requestSpec, responseSpec, BusinessDateType.BUSINESS_DATE, LocalDate.of(2023, 1, 16));
 
-        for (int i = 1; i <= n; i++) {
+            ArrayList<HashMap> savingsAccountErrorData = (ArrayList<HashMap>) validationErrorHelper.inactivateCharge(annualSavingsChargeId,
+                    savingsId, CommonConstants.RESPONSE_ERROR);
+            assertEquals("validation.msg.savingsaccountcharge.inactivation.of.charge.not.allowed.when.charge.is.due",
+                    savingsAccountErrorData.get(0).get(CommonConstants.RESPONSE_ERROR_MESSAGE_CODE));
+
+            SimpleDateFormat sdf = new SimpleDateFormat(CommonConstants.DATE_FORMAT, Locale.US);
+            Calendar cal = Calendar.getInstance();
+            List dates = (List) savingsChargeForPay.get("dueDate");
+            cal.set(Calendar.YEAR, (Integer) dates.get(0));
+            cal.set(Calendar.MONTH, (Integer) dates.get(1) - 1);
+            cal.set(Calendar.DAY_OF_MONTH, (Integer) dates.get(2));
+            int n = 0;
+            Calendar current = Calendar.getInstance();
+            while (cal.compareTo(current) < 0) {
+                n++;
+                cal.set(Calendar.YEAR, (Integer) dates.get(0) + n);
+            }
+            cal.set(Calendar.YEAR, (Integer) dates.get(0));
+            cal.set(Calendar.MONTH, (Integer) dates.get(1) - 1);
+            cal.set(Calendar.DAY_OF_MONTH, (Integer) dates.get(2));
+
+            BusinessDateHelper.updateBusinessDate(requestSpec, responseSpec, BusinessDateType.BUSINESS_DATE, LocalDate.of(2024, 1, 17));
+            for (int i = 1; i <= n; i++) {
+                this.savingsAccountHelper.payCharge((Integer) savingsChargeForPay.get("id"), savingsId,
+                        ((Float) savingsChargeForPay.get("amount")).toString(), sdf.format(cal.getTime()));
+                HashMap paidCharge = this.savingsAccountHelper.getSavingsCharge(savingsId, (Integer) savingsChargeForPay.get("id"));
+                Float expectedValue = (Float) savingsChargeForPay.get("amount") * i;
+                assertEquals(expectedValue, paidCharge.get("amountPaid"));
+                cal.set(Calendar.YEAR, (Integer) dates.get(0) + i);
+            }
+
+            Integer inactivatedChargeId = (Integer) this.savingsAccountHelper.inactivateCharge(annualSavingsChargeId, savingsId,
+                    CommonConstants.RESPONSE_RESOURCE_ID);
+            assertEquals(annualSavingsChargeId, inactivatedChargeId, "Inactivated Savings Charges Id");
+
+            final Integer monthlyFeechargeId = ChargesHelper.createCharges(this.requestSpec, this.responseSpec,
+                    ChargesHelper.getSavingsMonthlyFeeJSON());
+            Assertions.assertNotNull(monthlyFeechargeId);
+
+            this.savingsAccountHelper.addChargesForSavings(savingsId, monthlyFeechargeId, true);
+            charges = this.savingsAccountHelper.getSavingsCharges(savingsId);
+            Assertions.assertEquals(2, charges.size());
+
+            HashMap savingsChargeForWaive = charges.get(1);
+            final Integer monthlySavingsCharge = (Integer) savingsChargeForWaive.get("id");
+
+            savingsAccountErrorData = (ArrayList<HashMap>) validationErrorHelper.inactivateCharge(monthlySavingsCharge, savingsId,
+                    CommonConstants.RESPONSE_ERROR);
+            assertEquals("validation.msg.savingsaccountcharge.inactivation.of.charge.not.allowed.when.charge.is.due",
+                    savingsAccountErrorData.get(0).get(CommonConstants.RESPONSE_ERROR_MESSAGE_CODE));
+
+            this.savingsAccountHelper.waiveCharge((Integer) savingsChargeForWaive.get("id"), savingsId);
+            HashMap waiveCharge = this.savingsAccountHelper.getSavingsCharge(savingsId, (Integer) savingsChargeForWaive.get("id"));
+            assertEquals(savingsChargeForWaive.get("amount"), waiveCharge.get("amountWaived"));
+
+            this.savingsAccountHelper.waiveCharge((Integer) savingsChargeForWaive.get("id"), savingsId);
+            waiveCharge = this.savingsAccountHelper.getSavingsCharge(savingsId, (Integer) savingsChargeForWaive.get("id"));
+            BigDecimal totalWaiveAmount = BigDecimal.valueOf(Double.valueOf((Float) savingsChargeForWaive.get("amount")));
+            totalWaiveAmount = totalWaiveAmount.add(totalWaiveAmount);
+            assertEquals(totalWaiveAmount.floatValue(), waiveCharge.get("amountWaived"));
+
+            final Integer weeklyFeeId = ChargesHelper.createCharges(this.requestSpec, this.responseSpec,
+                    ChargesHelper.getSavingsWeeklyFeeJSON());
+            Assertions.assertNotNull(weeklyFeeId);
+
+            this.savingsAccountHelper.addChargesForSavings(savingsId, weeklyFeeId, true);
+            charges = this.savingsAccountHelper.getSavingsCharges(savingsId);
+            Assertions.assertEquals(3, charges.size());
+
+            savingsChargeForPay = charges.get(2);
+            final Integer weeklySavingsFeeId = (Integer) savingsChargeForPay.get("id");
+
+            savingsAccountErrorData = (ArrayList<HashMap>) validationErrorHelper.inactivateCharge(weeklySavingsFeeId, savingsId,
+                    CommonConstants.RESPONSE_ERROR);
+            assertEquals("validation.msg.savingsaccountcharge.inactivation.of.charge.not.allowed.when.charge.is.due",
+                    savingsAccountErrorData.get(0).get(CommonConstants.RESPONSE_ERROR_MESSAGE_CODE));
+
+            cal = Calendar.getInstance();
+            dates = (List) savingsChargeForPay.get("dueDate");
+            cal.set(Calendar.YEAR, (Integer) dates.get(0));
+            cal.set(Calendar.MONTH, (Integer) dates.get(1) - 1);
+            cal.set(Calendar.DAY_OF_MONTH, (Integer) dates.get(2));
+
+            // Depositing huge amount as scheduler job deducts the fee amount
+            String transactionDate = "17 January 2024";
+            Integer depositTransactionId = (Integer) this.savingsAccountHelper.depositToSavingsAccount(savingsId, "100000", transactionDate,
+                    CommonConstants.RESPONSE_RESOURCE_ID);
+            Assertions.assertNotNull(depositTransactionId);
+
             this.savingsAccountHelper.payCharge((Integer) savingsChargeForPay.get("id"), savingsId,
                     ((Float) savingsChargeForPay.get("amount")).toString(), sdf.format(cal.getTime()));
             HashMap paidCharge = this.savingsAccountHelper.getSavingsCharge(savingsId, (Integer) savingsChargeForPay.get("id"));
-            Float expectedValue = (Float) savingsChargeForPay.get("amount") * i;
-            assertEquals(expectedValue, paidCharge.get("amountPaid"));
-            cal.set(Calendar.YEAR, (Integer) dates.get(0) + i);
+            assertEquals(savingsChargeForPay.get("amount"), paidCharge.get("amountPaid"));
+            List nextDueDates = (List) paidCharge.get("dueDate");
+            LocalDate nextDueDate = LocalDate.of((Integer) nextDueDates.get(0), (Integer) nextDueDates.get(1),
+                    (Integer) nextDueDates.get(2));
+            LocalDate expectedNextDueDate = LocalDate.of((Integer) dates.get(0), (Integer) dates.get(1), (Integer) dates.get(2))
+                    .plusWeeks((Integer) paidCharge.get("feeInterval"));
+            assertEquals(expectedNextDueDate, nextDueDate);
+        } finally {
+            BusinessDateHelper.updateBusinessDate(requestSpec, responseSpec, BusinessDateType.BUSINESS_DATE, LocalDate.of(2024, 11, 11));
+            savingsAccountHelper.closeSavingsAccountOnDate(savingsId, "true", "11 November 2024");
+            GlobalConfigurationHelper.updateIsBusinessDateEnabled(requestSpec, responseSpec, Boolean.FALSE);
         }
-
-        Integer inactivatedChargeId = (Integer) this.savingsAccountHelper.inactivateCharge(annualSavingsChargeId, savingsId,
-                CommonConstants.RESPONSE_RESOURCE_ID);
-        assertEquals(annualSavingsChargeId, inactivatedChargeId, "Inactivated Savings Charges Id");
-
-        final Integer monthlyFeechargeId = ChargesHelper.createCharges(this.requestSpec, this.responseSpec,
-                ChargesHelper.getSavingsMonthlyFeeJSON());
-        Assertions.assertNotNull(monthlyFeechargeId);
-
-        this.savingsAccountHelper.addChargesForSavings(savingsId, monthlyFeechargeId, true);
-        charges = this.savingsAccountHelper.getSavingsCharges(savingsId);
-        Assertions.assertEquals(2, charges.size());
-
-        HashMap savingsChargeForWaive = charges.get(1);
-        final Integer monthlySavingsCharge = (Integer) savingsChargeForWaive.get("id");
-
-        savingsAccountErrorData = (ArrayList<HashMap>) validationErrorHelper.inactivateCharge(monthlySavingsCharge, savingsId,
-                CommonConstants.RESPONSE_ERROR);
-        assertEquals("validation.msg.savingsaccountcharge.inactivation.of.charge.not.allowed.when.charge.is.due",
-                savingsAccountErrorData.get(0).get(CommonConstants.RESPONSE_ERROR_MESSAGE_CODE));
-
-        this.savingsAccountHelper.waiveCharge((Integer) savingsChargeForWaive.get("id"), savingsId);
-        HashMap waiveCharge = this.savingsAccountHelper.getSavingsCharge(savingsId, (Integer) savingsChargeForWaive.get("id"));
-        assertEquals(savingsChargeForWaive.get("amount"), waiveCharge.get("amountWaived"));
-
-        this.savingsAccountHelper.waiveCharge((Integer) savingsChargeForWaive.get("id"), savingsId);
-        waiveCharge = this.savingsAccountHelper.getSavingsCharge(savingsId, (Integer) savingsChargeForWaive.get("id"));
-        BigDecimal totalWaiveAmount = BigDecimal.valueOf(Double.valueOf((Float) savingsChargeForWaive.get("amount")));
-        totalWaiveAmount = totalWaiveAmount.add(totalWaiveAmount);
-        assertEquals(totalWaiveAmount.floatValue(), waiveCharge.get("amountWaived"));
-
-        final Integer weeklyFeeId = ChargesHelper.createCharges(this.requestSpec, this.responseSpec,
-                ChargesHelper.getSavingsWeeklyFeeJSON());
-        Assertions.assertNotNull(weeklyFeeId);
-
-        this.savingsAccountHelper.addChargesForSavings(savingsId, weeklyFeeId, true);
-        charges = this.savingsAccountHelper.getSavingsCharges(savingsId);
-        Assertions.assertEquals(3, charges.size());
-
-        savingsChargeForPay = charges.get(2);
-        final Integer weeklySavingsFeeId = (Integer) savingsChargeForPay.get("id");
-
-        savingsAccountErrorData = (ArrayList<HashMap>) validationErrorHelper.inactivateCharge(weeklySavingsFeeId, savingsId,
-                CommonConstants.RESPONSE_ERROR);
-        assertEquals("validation.msg.savingsaccountcharge.inactivation.of.charge.not.allowed.when.charge.is.due",
-                savingsAccountErrorData.get(0).get(CommonConstants.RESPONSE_ERROR_MESSAGE_CODE));
-
-        cal = Calendar.getInstance();
-        dates = (List) savingsChargeForPay.get("dueDate");
-        cal.set(Calendar.YEAR, (Integer) dates.get(0));
-        cal.set(Calendar.MONTH, (Integer) dates.get(1) - 1);
-        cal.set(Calendar.DAY_OF_MONTH, (Integer) dates.get(2));
-
-        // Depositing huge amount as scheduler job deducts the fee amount
-        Integer depositTransactionId = (Integer) this.savingsAccountHelper.depositToSavingsAccount(savingsId, "100000",
-                SavingsAccountHelper.TRANSACTION_DATE, CommonConstants.RESPONSE_RESOURCE_ID);
-        Assertions.assertNotNull(depositTransactionId);
-
-        this.savingsAccountHelper.payCharge((Integer) savingsChargeForPay.get("id"), savingsId,
-                ((Float) savingsChargeForPay.get("amount")).toString(), sdf.format(cal.getTime()));
-        HashMap paidCharge = this.savingsAccountHelper.getSavingsCharge(savingsId, (Integer) savingsChargeForPay.get("id"));
-        assertEquals(savingsChargeForPay.get("amount"), paidCharge.get("amountPaid"));
-        List nextDueDates = (List) paidCharge.get("dueDate");
-        LocalDate nextDueDate = LocalDate.of((Integer) nextDueDates.get(0), (Integer) nextDueDates.get(1), (Integer) nextDueDates.get(2));
-        LocalDate expectedNextDueDate = LocalDate.of((Integer) dates.get(0), (Integer) dates.get(1), (Integer) dates.get(2))
-                .plusWeeks((Integer) paidCharge.get("feeInterval"));
-        assertEquals(expectedNextDueDate, nextDueDate);
     }
 
     /***
@@ -3008,7 +3030,7 @@ public class ClientSavingsIntegrationTest {
         this.savingsProductHelper = new SavingsProductHelper();
         this.scheduleJobHelper = new SchedulerJobHelper(requestSpec);
         configurationForBackdatedTransaction();
-        LocalDate transactionDate = LocalDate.now(Utils.getZoneIdOfTenant()).minusDays(5);
+        LocalDate transactionDate = Utils.getLocalDateOfTenant().minusDays(5);
         final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMMM yyyy");
         String startDate = formatter.format(transactionDate);
         String secondTrx = formatter.format(transactionDate.plusDays(1));
@@ -3160,56 +3182,6 @@ public class ClientSavingsIntegrationTest {
 
         assertEquals("error.msg.savingsaccount.transaction.insufficient.account.balance",
                 error.get(0).get(CommonConstants.RESPONSE_ERROR_MESSAGE_CODE));
-    }
-
-    @Test
-    public void testSavingsAccountDepositAfterNegativeHoldAmount() {
-        this.savingsAccountHelper = new SavingsAccountHelper(this.requestSpec, this.responseSpec);
-
-        final Integer clientID = ClientHelper.createClient(this.requestSpec, this.responseSpec);
-        ClientHelper.verifyClientCreatedOnServer(this.requestSpec, this.responseSpec, clientID);
-
-        final Integer savingsProductID = createSavingsProduct(this.requestSpec, this.responseSpec, "0", null, false, true, false);
-        Assertions.assertNotNull(savingsProductID);
-
-        final Integer savingsId = this.savingsAccountHelper.applyForSavingsApplication(clientID, savingsProductID, ACCOUNT_TYPE_INDIVIDUAL);
-        this.savingsAccountHelper.approveSavings(savingsId);
-        HashMap savingsStatusHashMap = this.savingsAccountHelper.activateSavings(savingsId);
-        SavingsStatusChecker.verifySavingsIsActive(savingsStatusHashMap);
-
-        float balance = 0F;
-        float transactionAmount = 100F;
-        Integer depositTransactionId = (Integer) this.savingsAccountHelper.depositToSavingsAccount(savingsId,
-                String.valueOf(transactionAmount), SavingsAccountHelper.TRANSACTION_DATE, CommonConstants.RESPONSE_RESOURCE_ID);
-        Assertions.assertNotNull(depositTransactionId);
-        balance = balance + transactionAmount;
-        HashMap summary = this.savingsAccountHelper.getSavingsSummary(savingsId);
-        assertEquals(balance, summary.get("availableBalance"), "Verifying Balance after deposit");
-        Integer withdrawalTransactionId = (Integer) this.savingsAccountHelper.withdrawalFromSavingsAccount(savingsId,
-                String.valueOf(transactionAmount), SavingsAccountHelper.TRANSACTION_DATE, CommonConstants.RESPONSE_RESOURCE_ID);
-        Assertions.assertNotNull(withdrawalTransactionId);
-        balance = balance - transactionAmount;
-        summary = this.savingsAccountHelper.getSavingsSummary(savingsId);
-        assertEquals(balance, summary.get("availableBalance"), "Verifying Balance after withdrawal");
-
-        float holdAmount = 50F;
-        Integer holdTransactionId = (Integer) this.savingsAccountHelper.holdAmountInSavingsAccount(savingsId, String.valueOf(holdAmount),
-                false, SavingsAccountHelper.TRANSACTION_DATE, CommonConstants.RESPONSE_RESOURCE_ID);
-        Assertions.assertNotNull(holdTransactionId);
-        balance = balance - holdAmount;
-        summary = this.savingsAccountHelper.getSavingsSummary(savingsId);
-        assertEquals(balance, summary.get("availableBalance"), "Verifying Balance after hold amount");
-        this.savingsAccountHelper.releaseAmount(savingsId, holdTransactionId);
-        balance = balance + holdAmount;
-        summary = this.savingsAccountHelper.getSavingsSummary(savingsId);
-        assertEquals(balance, summary.get("availableBalance"), "Verifying Balance after release amount");
-
-        depositTransactionId = (Integer) this.savingsAccountHelper.depositToSavingsAccount(savingsId, String.valueOf(transactionAmount),
-                SavingsAccountHelper.TRANSACTION_DATE, CommonConstants.RESPONSE_RESOURCE_ID);
-        Assertions.assertNotNull(depositTransactionId);
-        balance = balance + transactionAmount;
-        summary = this.savingsAccountHelper.getSavingsSummary(savingsId);
-        assertEquals(balance, summary.get("availableBalance"), "Verifying Balance after hold-release-deposit");
     }
 
     private Integer createSavingsAccountDailyPostingOverdraft(final Integer clientID, final String startDate) {

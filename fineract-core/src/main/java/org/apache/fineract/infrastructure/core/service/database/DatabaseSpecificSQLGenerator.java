@@ -21,13 +21,17 @@ package org.apache.fineract.infrastructure.core.service.database;
 import static java.lang.String.format;
 
 import jakarta.validation.constraints.NotNull;
+import java.math.BigInteger;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.fineract.infrastructure.core.service.DateUtils;
+import org.apache.fineract.infrastructure.dataqueries.data.ResultsetColumnHeaderData;
 import org.apache.logging.log4j.util.Strings;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -155,16 +159,6 @@ public class DatabaseSpecificSQLGenerator {
         }
     }
 
-    public String lastInsertId() {
-        if (databaseTypeResolver.isMySQL()) {
-            return "LAST_INSERT_ID()";
-        } else if (databaseTypeResolver.isPostgreSQL()) {
-            return "LASTVAL()";
-        } else {
-            throw new IllegalStateException("Database type is not supported for last insert id " + databaseTypeResolver.databaseType());
-        }
-    }
-
     public String castChar(String sql) {
         if (databaseTypeResolver.isMySQL()) {
             return format("CAST(%s AS CHAR)", sql);
@@ -251,18 +245,48 @@ public class DatabaseSpecificSQLGenerator {
                 .collect(Collectors.joining(", "));
     }
 
-    public String buildInsert(@NotNull String definition, Collection<String> fields) {
+    public String buildInsert(@NotNull String definition, List<String> fields, Map<String, ResultsetColumnHeaderData> headers) {
         if (fields == null || fields.isEmpty()) {
             return "";
         }
         return "INSERT INTO " + escape(definition) + '(' + fields.stream().map(this::escape).collect(Collectors.joining(", "))
-                + ") VALUES (?" + ", ?".repeat(fields.size() - 1) + ')';
+                + ") VALUES (" + fields.stream().map(e -> decoratePlaceHolder(headers, e, "?")).collect(Collectors.joining(", ")) + ")";
     }
 
-    public String buildUpdate(@NotNull String definition, Collection<String> fields) {
+    public String buildUpdate(@NotNull String definition, List<String> fields, Map<String, ResultsetColumnHeaderData> headers) {
         if (fields == null || fields.isEmpty()) {
             return "";
         }
-        return "UPDATE " + escape(definition) + " SET " + fields.stream().map(e -> escape(e) + " = ?").collect(Collectors.joining(", "));
+        return "UPDATE " + escape(definition) + " SET "
+                + fields.stream().map(e -> escape(e) + " = " + decoratePlaceHolder(headers, e, "?")).collect(Collectors.joining(", "));
+    }
+
+    private String decoratePlaceHolder(Map<String, ResultsetColumnHeaderData> headers, String field, String placeHolder) {
+        DatabaseType dialect = getDialect();
+        if (dialect.isPostgres()) {
+            ResultsetColumnHeaderData header = headers.get(field);
+            if (header != null) {
+                JdbcJavaType columnType = header.getColumnType();
+                if (columnType.isJsonType()) {
+                    return placeHolder + "::" + columnType.getJdbcName(dialect);
+                }
+            }
+        }
+        return placeHolder;
+    }
+
+    public Long fetchPK(GeneratedKeyHolder keyHolder) {
+        return switch (getDialect()) {
+            case POSTGRESQL -> (Long) keyHolder.getKeys().get("id");
+            case MYSQL -> {
+                // Mariadb
+                BigInteger generatedKey = (BigInteger) keyHolder.getKeys().get("insert_id");
+                if (generatedKey == null) {
+                    // Mysql
+                    generatedKey = (BigInteger) keyHolder.getKeys().get("GENERATED_KEY");
+                }
+                yield generatedKey.longValue();
+            }
+        };
     }
 }

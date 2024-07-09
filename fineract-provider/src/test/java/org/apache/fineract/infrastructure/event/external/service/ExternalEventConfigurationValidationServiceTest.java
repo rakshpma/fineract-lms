@@ -97,7 +97,13 @@ public class ExternalEventConfigurationValidationServiceTest {
                 "LoanAccountsStayedLockedBusinessEvent", "MockBusinessEvent", "LoanChargeOffPreBusinessEvent",
                 "LoanChargeOffPostBusinessEvent", "LoanUndoChargeOffBusinessEvent", "LoanAccrualTransactionCreatedBusinessEvent",
                 "LoanRescheduledDueAdjustScheduleBusinessEvent", "LoanOwnershipTransferBusinessEvent", "LoanAccountSnapshotBusinessEvent",
-                "LoanTransactionDownPaymentPostBusinessEvent", "LoanTransactionDownPaymentPreBusinessEvent");
+                "LoanTransactionDownPaymentPostBusinessEvent", "LoanTransactionDownPaymentPreBusinessEvent",
+                "LoanAccountDelinquencyPauseChangedBusinessEvent", "LoanAccountCustomSnapshotBusinessEvent",
+                "LoanReAgeTransactionBusinessEvent", "LoanUndoReAgeTransactionBusinessEvent", "LoanReAmortizeTransactionBusinessEvent",
+                "LoanUndoReAmortizeTransactionBusinessEvent", "LoanReAgeBusinessEvent", "LoanUndoReAgeBusinessEvent",
+                "LoanReAmortizeBusinessEvent", "LoanUndoReAmortizeBusinessEvent", "LoanTransactionInterestPaymentWaiverPreBusinessEvent",
+                "LoanTransactionInterestPaymentWaiverPostBusinessEvent", "LoanTransactionAccrualActivityPostBusinessEvent",
+                "LoanTransactionAccrualActivityPreBusinessEvent");
 
         List<FineractPlatformTenant> tenants = Arrays
                 .asList(new FineractPlatformTenant(1L, "default", "Default Tenant", "Europe/Budapest", null));
@@ -133,7 +139,7 @@ public class ExternalEventConfigurationValidationServiceTest {
                 () -> underTest.afterPropertiesSet());
 
         // then
-        String expectedMessage = "All external events are not configured";
+        String expectedMessage = "No external events configured";
         String actualMessage = exceptionThrown.getMessage();
 
         assertTrue(actualMessage.contains(expectedMessage));
@@ -176,7 +182,13 @@ public class ExternalEventConfigurationValidationServiceTest {
                 "LoanAccountsStayedLockedBusinessEvent", "LoanChargeOffPreBusinessEvent", "LoanChargeOffPostBusinessEvent",
                 "LoanUndoChargeOffBusinessEvent", "LoanAccrualTransactionCreatedBusinessEvent",
                 "LoanRescheduledDueAdjustScheduleBusinessEvent", "LoanOwnershipTransferBusinessEvent", "LoanAccountSnapshotBusinessEvent",
-                "LoanTransactionDownPaymentPostBusinessEvent", "LoanTransactionDownPaymentPreBusinessEvent");
+                "LoanTransactionDownPaymentPostBusinessEvent", "LoanTransactionDownPaymentPreBusinessEvent",
+                "LoanAccountDelinquencyPauseChangedBusinessEvent", "LoanAccountCustomSnapshotBusinessEvent",
+                "LoanReAgeTransactionBusinessEvent", "LoanUndoReAgeTransactionBusinessEvent", "LoanReAmortizeTransactionBusinessEvent",
+                "LoanUndoReAmortizeTransactionBusinessEvent", "LoanReAgeBusinessEvent", "LoanUndoReAgeBusinessEvent",
+                "LoanReAmortizeBusinessEvent", "LoanUndoReAmortizeBusinessEvent", "LoanTransactionInterestPaymentWaiverPreBusinessEvent",
+                "LoanTransactionInterestPaymentWaiverPostBusinessEvent", "LoanTransactionAccrualActivityPostBusinessEvent",
+                "LoanTransactionAccrualActivityPreBusinessEvent");
 
         List<FineractPlatformTenant> tenants = Arrays
                 .asList(new FineractPlatformTenant(1L, "default", "Default Tenant", "Europe/Budapest", null));

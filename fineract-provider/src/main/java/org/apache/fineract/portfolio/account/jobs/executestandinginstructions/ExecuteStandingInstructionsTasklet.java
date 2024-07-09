@@ -75,12 +75,12 @@ public class ExecuteStandingInstructionsTasklet implements Tasklet {
                 LocalDate startDate = data.validFrom();
                 if (frequencyType.isMonthly()) {
                     startDate = startDate.withDayOfMonth(data.recurrenceOnDay());
-                    if (startDate.isBefore(data.validFrom())) {
+                    if (DateUtils.isBefore(startDate, data.validFrom())) {
                         startDate = startDate.plusMonths(1);
                     }
                 } else if (frequencyType.isYearly()) {
                     startDate = startDate.withDayOfMonth(data.recurrenceOnDay()).withMonth(data.recurrenceOnMonth());
-                    if (startDate.isBefore(data.validFrom())) {
+                    if (DateUtils.isBefore(startDate, data.validFrom())) {
                         startDate = startDate.plusYears(1);
                     }
                 }
@@ -97,7 +97,7 @@ public class ExecuteStandingInstructionsTasklet implements Tasklet {
                     transactionAmount = standingInstructionDuesData.totalDueAmount();
                 }
                 if (recurrenceType.isDuesRecurrence()) {
-                    isDueForTransfer = LocalDate.now(DateUtils.getDateTimeZoneOfTenant()).equals(standingInstructionDuesData.dueDate());
+                    isDueForTransfer = isDueForTransfer(standingInstructionDuesData);
                 }
             }
 
@@ -163,5 +163,10 @@ public class ExecuteStandingInstructionsTasklet implements Tasklet {
         updateQuery.append("'").append(errorLog).append("')");
         jdbcTemplate.update(updateQuery.toString());
         return transferCompleted;
+    }
+
+    public boolean isDueForTransfer(StandingInstructionDuesData standingInstructionDuesData) {
+        return standingInstructionDuesData.dueDate() != null
+                && !standingInstructionDuesData.dueDate().isAfter(LocalDate.now(DateUtils.getDateTimeZoneOfTenant()));
     }
 }

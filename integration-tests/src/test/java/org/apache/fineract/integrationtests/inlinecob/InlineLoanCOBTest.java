@@ -105,7 +105,7 @@ public class InlineLoanCOBTest {
             Assertions.assertNotNull(loanProductID);
             HashMap loanStatusHashMap;
 
-            final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "10 January 2020");
+            final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "1 March 2020");
 
             Assertions.assertNotNull(loanID);
 
@@ -185,12 +185,12 @@ public class InlineLoanCOBTest {
             final GetDelinquencyBucketsResponse delinquencyBucket = DelinquencyBucketsHelper.getDelinquencyBucket(requestSpec, responseSpec,
                     delinquencyBucketResponse.getResourceId());
 
-            final Integer loanProductID = createLoanProduct(loanTransactionHelper, delinquencyBucket.getId());
+            final Integer loanProductID = createLoanProduct(loanTransactionHelper, Math.toIntExact(delinquencyBucket.getId()));
 
             Assertions.assertNotNull(loanProductID);
             HashMap loanStatusHashMap;
 
-            final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "10 January 2020");
+            final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "1 March 2020");
 
             Assertions.assertNotNull(loanID);
 
@@ -260,7 +260,7 @@ public class InlineLoanCOBTest {
             final Integer loanProductID = createLoanProduct(overdueFeeChargeId.toString());
             Assertions.assertNotNull(loanProductID);
             HashMap loanStatusHashMap;
-            final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "10 January 2020");
+            final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "1 March 2020");
 
             Assertions.assertNotNull(loanID);
 
@@ -318,7 +318,7 @@ public class InlineLoanCOBTest {
             final Integer loanProductID = createLoanProduct(overdueFeeChargeId.toString());
             Assertions.assertNotNull(loanProductID);
             HashMap loanStatusHashMap;
-            final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "10 January 2020");
+            final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "1 March 2020");
 
             Assertions.assertNotNull(loanID);
 
@@ -375,7 +375,7 @@ public class InlineLoanCOBTest {
             final Integer loanProductID = createLoanProduct(overdueFeeChargeId.toString());
             Assertions.assertNotNull(loanProductID);
             HashMap loanStatusHashMap;
-            final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "10 January 2020");
+            final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "1 March 2020");
 
             Assertions.assertNotNull(loanID);
 
@@ -442,7 +442,7 @@ public class InlineLoanCOBTest {
             final Integer loanProductID = createLoanProduct(overdueFeeChargeId.toString());
             Assertions.assertNotNull(loanProductID);
             HashMap loanStatusHashMap;
-            final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "10 January 2020");
+            final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "1 March 2020");
 
             Assertions.assertNotNull(loanID);
 

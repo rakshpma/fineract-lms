@@ -32,7 +32,7 @@ import org.apache.fineract.organisation.workingdays.api.WorkingDaysApiConstants;
 @Getter
 @Entity
 @Table(name = "m_working_days")
-public class WorkingDays extends AbstractPersistableCustom {
+public class WorkingDays extends AbstractPersistableCustom<Long> {
 
     @Column(name = "recurrence", length = 100, nullable = true)
     private String recurrence;
@@ -51,7 +51,7 @@ public class WorkingDays extends AbstractPersistableCustom {
 
     }
 
-    protected WorkingDays(final String recurrence, final Integer repaymentReschedulingType, final Boolean extendTermForDailyRepayments,
+    public WorkingDays(final String recurrence, final Integer repaymentReschedulingType, final Boolean extendTermForDailyRepayments,
             final Boolean extendTermForRepaymentsOnHolidays) {
         this.recurrence = recurrence;
         this.repaymentReschedulingType = repaymentReschedulingType;

@@ -145,4 +145,21 @@
     <include file="parts/0123_add_is_down_payment_to_repayment_schedule.xml" relativeToChangelogFile="true" />
     <include file="parts/0124_transaction_summary_with_asset_owner_report_typo_fix_3.xml" relativeToChangelogFile="true" />
     <include file="parts/0125_transaction_summary_with_asset_owner_report_chargeoff_reason.xml" relativeToChangelogFile="true" />
+    <include file="parts/0126_add_loan_product_installment_level_delinquency.xml" relativeToChangelogFile="true" />
+    <include file="parts/0127_client_name_length.xml" relativeToChangelogFile="true" />
+    <include file="parts/0128_savings_audit.xml" relativeToChangelogFile="true" />
+    <include file="parts/0129_transaction_summary_with_asset_owner_report_overpaid_amount.xml" relativeToChangelogFile="true" />
+    <include file="parts/0130_add_create_delinquency_action_permission.xml" relativeToChangelogFile="true" />
+    <include file="parts/0131_add_configuration_maker_checker.xml" relativeToChangelogFile="true" />
+    <include file="parts/0132_add_configuration_loan_next_repayment_date_calculation.xml" relativeToChangelogFile="true" />
+    <include file="parts/0133_transaction_summary_with_asset_owner_report_recovery_repayments_chargeoff_reason.xml" relativeToChangelogFile="true" />
+    <include file="parts/0134_transaction_summary_with_asset_owner_report_down_payment_amount_fix.xml" relativeToChangelogFile="true" />
+    <include file="parts/0135_add_external_event_for_loan_reaging.xml" relativeToChangelogFile="true" />
+    <include file="parts/0136_loan_reaging_parameters.xml" relativeToChangelogFile="true" />
+    <include file="parts/0137_add_external_event_for_loan_reamortization.xml" relativeToChangelogFile="true" />
+    <include file="parts/0138_add_external_event_for_loan_reaging_reamortization_2.xml" relativeToChangelogFile="true" />
+    <include file="parts/0139_add_disburse_without_auto_payment_command.xml" relativeToChangelogFile="true" />
+    <include file="parts/0140_trial_balance_with_asset_transfer_update.xml" relativeToChangelogFile="true" />
+    <include file="parts/0141_add_interest_payment_waiver_transaction_type.xml" relativeToChangelogFile="true" />
+    <include file="parts/0142_add_accrual_activity_transaction.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>

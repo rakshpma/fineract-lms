@@ -69,9 +69,7 @@ import org.apache.fineract.useradministration.domain.AppUser;
 import org.apache.fineract.useradministration.service.AppUserReadPlatformService;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
-import org.springframework.stereotype.Service;
 
-@Service
 @RequiredArgsConstructor
 @Slf4j
 public class AuditReadPlatformServiceImpl implements AuditReadPlatformService {
@@ -170,7 +168,7 @@ public class AuditReadPlatformServiceImpl implements AuditReadPlatformService {
 
     @Override
     public Collection<AuditData> retrieveAuditEntries(final SQLBuilder extraCriteria, final boolean includeJson) {
-        return retrieveEntries("audit", extraCriteria, " order by aud.id DESC limit " + PaginationParameters.getCheckedLimit(null),
+        return retrieveEntries("audit", extraCriteria, " order by aud.id DESC limit " + PaginationParameters.DEFAULT_MAX_LIMIT,
                 includeJson);
     }
 
@@ -187,14 +185,14 @@ public class AuditReadPlatformServiceImpl implements AuditReadPlatformService {
         sqlBuilder.append("select " + sqlGenerator.calcFoundRows() + " ");
         sqlBuilder.append(rm.schema(includeJson, hierarchy));
         sqlBuilder.append(' ').append(extraCriteria.getSQLTemplate());
-        if (parameters.isOrderByRequested()) {
+        if (parameters.hasOrderBy()) {
             sqlBuilder.append(' ').append(parameters.orderBySql());
             this.columnValidator.validateSqlInjection(sqlBuilder.toString(), parameters.orderBySql());
         } else {
             sqlBuilder.append(' ').append(' ').append(" order by aud.id DESC");
         }
 
-        if (parameters.isLimited()) {
+        if (parameters.hasLimit()) {
             sqlBuilder.append(' ').append(parameters.limitSql());
             this.columnValidator.validateSqlInjection(sqlBuilder.toString(), parameters.limitSql());
         }

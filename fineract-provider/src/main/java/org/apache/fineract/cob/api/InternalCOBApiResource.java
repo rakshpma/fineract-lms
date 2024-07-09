@@ -18,8 +18,12 @@
  */
 package org.apache.fineract.cob.api;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParser;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
+import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
@@ -27,6 +31,7 @@ import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.UriInfo;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,25 +40,34 @@ import org.apache.fineract.cob.loan.LoanCOBConstant;
 import org.apache.fineract.cob.loan.RetrieveLoanIdService;
 import org.apache.fineract.infrastructure.businessdate.domain.BusinessDateType;
 import org.apache.fineract.infrastructure.core.api.ApiRequestParameterHelper;
+import org.apache.fineract.infrastructure.core.boot.FineractProfiles;
 import org.apache.fineract.infrastructure.core.serialization.ApiRequestJsonSerializationSettings;
 import org.apache.fineract.infrastructure.core.serialization.ToApiJsonSerializer;
 import org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil;
+import org.apache.fineract.portfolio.loanaccount.domain.Loan;
+import org.apache.fineract.portfolio.loanaccount.domain.LoanRepositoryWrapper;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
-@Profile("test")
+@Profile(FineractProfiles.TEST)
 @Component
 @Path("/v1/internal/cob")
 @RequiredArgsConstructor
 @Slf4j
 public class InternalCOBApiResource implements InitializingBean {
 
+    private static final String DATETIME_PATTERN = "dd MMMM yyyy";
+
     private final RetrieveLoanIdService retrieveLoanIdService;
     private final ApiRequestParameterHelper apiRequestParameterHelper;
     private final ToApiJsonSerializer<List> toApiJsonSerializerForList;
+    private final LoanRepositoryWrapper loanRepositoryWrapper;
+
+    protected DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(DATETIME_PATTERN);
 
     @Override
+    @SuppressFBWarnings("SLF4J_SIGN_ONLY_FORMAT")
     public void afterPropertiesSet() throws Exception {
         log.warn("------------------------------------------------------------");
         log.warn("                                                            ");
@@ -75,6 +89,18 @@ public class InternalCOBApiResource implements InitializingBean {
                 businessDate, false, partitionSize);
         final ApiRequestJsonSerializationSettings settings = this.apiRequestParameterHelper.process(uriInfo.getQueryParameters());
         return toApiJsonSerializerForList.serialize(settings, loanCOBPartitions);
+    }
+
+    @POST
+    @Consumes({ MediaType.APPLICATION_JSON })
+    @Path("fast-forward-cob-date-of-loan/{loanId}")
+    public void updateLoanCobLastDate(@Context final UriInfo uriInfo, @PathParam("loanId") long loanId, String jsonBody) {
+        JsonElement root = JsonParser.parseString(jsonBody);
+        String lastClosedBusinessDate = root.getAsJsonObject().get("lastClosedBusinessDate").getAsString();
+        Loan loan = loanRepositoryWrapper.findOneWithNotFoundDetection(loanId);
+        LocalDate localDate = LocalDate.parse(lastClosedBusinessDate, dateTimeFormatter);
+        loan.setLastClosedBusinessDate(localDate);
+        loanRepositoryWrapper.save(loan);
     }
 
 }

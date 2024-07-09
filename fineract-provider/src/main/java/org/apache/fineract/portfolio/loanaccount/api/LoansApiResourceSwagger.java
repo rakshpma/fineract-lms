@@ -23,6 +23,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
+import org.apache.fineract.infrastructure.core.data.EnumOptionData;
 import org.apache.fineract.portfolio.delinquency.api.DelinquencyApiResourceSwagger.GetDelinquencyRangesResponse;
 
 /**
@@ -43,6 +44,26 @@ final class LoansApiResourceSwagger {
         public Double approvalAmount;
         @Schema(example = "200.000000")
         public Double netDisbursalAmount;
+
+        public GetLoanCurrency currency;
+    }
+
+    public static final class GetLoanCurrency {
+
+        private GetLoanCurrency() {}
+
+        @Schema(example = "UGX")
+        public String code;
+        @Schema(example = "Uganda Shilling")
+        public String name;
+        @Schema(example = "2")
+        public Integer decimalPlaces;
+        @Schema(example = "USh")
+        public String displaySymbol;
+        @Schema(example = "currency.UGX")
+        public String nameCode;
+        @Schema(example = "Uganda Shilling (USh)")
+        public String displayLabel;
     }
 
     @Schema(description = "GetLoansTemplateResponse")
@@ -63,7 +84,7 @@ final class LoansApiResourceSwagger {
             private GetLoansTemplateProductOptions() {}
 
             @Schema(example = "1")
-            public Integer id;
+            public Long id;
             @Schema(example = "Kampala Product (with cash accounting)")
             public String name;
         }
@@ -73,7 +94,7 @@ final class LoansApiResourceSwagger {
         @Schema(example = "Kampala first Client")
         public String clientName;
         @Schema(example = "2")
-        public Integer clientOfficeId;
+        public Long clientOfficeId;
         public GetLoansTemplateTimeline timeline;
         public Set<GetLoansTemplateProductOptions> productOptions;
     }
@@ -88,7 +109,7 @@ final class LoansApiResourceSwagger {
             private GetLoansLoanIdStatus() {}
 
             @Schema(example = "300")
-            public Integer id;
+            public Long id;
             @Schema(example = "loanStatusType.active")
             public String code;
             @Schema(example = "Active")
@@ -116,7 +137,7 @@ final class LoansApiResourceSwagger {
             private GetLoansLoanIdLoanType() {}
 
             @Schema(example = "1")
-            public Integer id;
+            public Long id;
             @Schema(example = "loanType.individual")
             public String code;
             @Schema(example = "Individual")
@@ -146,7 +167,7 @@ final class LoansApiResourceSwagger {
             private GetLoansLoanIdTermPeriodFrequencyType() {}
 
             @Schema(example = "2")
-            public Integer id;
+            public Long id;
             @Schema(example = "termFrequency.periodFrequencyType.months")
             public String code;
             @Schema(example = "Months")
@@ -158,7 +179,7 @@ final class LoansApiResourceSwagger {
             private GetLoansLoanIdRepaymentFrequencyType() {}
 
             @Schema(example = "2")
-            public Integer id;
+            public Long id;
             @Schema(example = "repaymentFrequency.periodFrequencyType.months")
             public String code;
             @Schema(example = "Months")
@@ -170,7 +191,7 @@ final class LoansApiResourceSwagger {
             private GetLoansLoanIdInterestRateFrequencyType() {}
 
             @Schema(example = "3")
-            public Integer id;
+            public Long id;
             @Schema(example = "interestRateFrequency.periodFrequencyType.years")
             public String code;
             @Schema(example = "Per year")
@@ -182,7 +203,7 @@ final class LoansApiResourceSwagger {
             private GetLoansLoanIdAmortizationType() {}
 
             @Schema(example = "1")
-            public Integer id;
+            public Long id;
             @Schema(example = "amortizationType.equal.installments")
             public String code;
             @Schema(example = "Equal installments")
@@ -194,7 +215,7 @@ final class LoansApiResourceSwagger {
             private GetLoansLoanIdInterestType() {}
 
             @Schema(example = "1")
-            public Integer id;
+            public Long id;
             @Schema(example = "interestType.flat")
             public String code;
             @Schema(example = "Flat")
@@ -206,7 +227,7 @@ final class LoansApiResourceSwagger {
             private GetLoansLoanIdInterestCalculationPeriodType() {}
 
             @Schema(example = "1")
-            public Integer id;
+            public Long id;
             @Schema(example = "interestCalculationPeriodType.same.as.repayment.period")
             public String code;
             @Schema(example = "Same as repayment period")
@@ -384,7 +405,7 @@ final class LoansApiResourceSwagger {
             private GetLoansLoanIdDisbursementDetails() {}
 
             @Schema(example = "71")
-            public Integer id;
+            public Long id;
             @Schema(example = "[2022, 07, 01]")
             public LocalDate expectedDisbursementDate;
             @Schema(example = "[2022, 07, 01]")
@@ -421,7 +442,7 @@ final class LoansApiResourceSwagger {
                 private GetLoansLoanIdLinkedAccount() {}
 
                 @Schema(example = "1")
-                public Integer id;
+                public Long id;
                 @Schema(example = "000000001")
                 public String accountNo;
             }
@@ -435,7 +456,7 @@ final class LoansApiResourceSwagger {
                     private GetLoansLoanIdChargeTimeType() {}
 
                     @Schema(example = "9")
-                    public Integer id;
+                    public Long id;
                     @Schema(example = "chargeTimeType.overdueInstallment")
                     public String code;
                     @Schema(example = "overdue fees")
@@ -447,7 +468,7 @@ final class LoansApiResourceSwagger {
                     private GetLoansLoanIdChargeCalculationType() {}
 
                     @Schema(example = "2")
-                    public Integer id;
+                    public Long id;
                     @Schema(example = "chargeCalculationType.percent.of.amount")
                     public String code;
                     @Schema(example = "% Amount")
@@ -459,7 +480,7 @@ final class LoansApiResourceSwagger {
                     private GetLoansLoanIdChargePaymentMode() {}
 
                     @Schema(example = "0")
-                    public Integer id;
+                    public Long id;
                     @Schema(example = "chargepaymentmode.regular")
                     public String code;
                     @Schema(example = "Regular")
@@ -471,7 +492,7 @@ final class LoansApiResourceSwagger {
                     private GetLoansLoanIdFeeFrequency() {}
 
                     @Schema(example = "1")
-                    public Integer id;
+                    public Long id;
                     @Schema(example = "feeFrequencyperiodFrequencyType.weeks")
                     public String code;
                     @Schema(example = "Weeks")
@@ -479,7 +500,7 @@ final class LoansApiResourceSwagger {
                 }
 
                 @Schema(example = "20")
-                public Integer id;
+                public Long id;
                 @Schema(example = "overdraft penality")
                 public String name;
                 @Schema(example = "true")
@@ -523,6 +544,8 @@ final class LoansApiResourceSwagger {
             public Double interestOutstanding;
             @Schema(example = "200000.000000")
             public Double interestOverdue;
+            @Schema(example = "0.00")
+            public Double feeAdjustments;
             @Schema(example = "18000.000000")
             public Double feeChargesCharged;
             @Schema(example = "0.000000")
@@ -537,6 +560,8 @@ final class LoansApiResourceSwagger {
             public Double feeChargesOutstanding;
             @Schema(example = "15000.000000")
             public Double feeChargesOverdue;
+            @Schema(example = "0.00")
+            public Double penaltyAdjustments;
             @Schema(example = "0.000000")
             public Double penaltyChargesCharged;
             @Schema(example = "0.000000")
@@ -842,7 +867,7 @@ final class LoansApiResourceSwagger {
             @Schema(example = "[2022, 07, 01]")
             public LocalDate transactionDate;
             @Schema(example = "101")
-            public Long paymentTypeId;
+            public Integer paymentTypeId;
             @Schema(example = "acct123")
             public String accountNumber;
             @Schema(example = "10001")
@@ -963,9 +988,9 @@ final class LoansApiResourceSwagger {
             private String externalId;
         }
 
-        static final class GetLoansLoanIdCollectionData {
+        static final class GetLoansLoanIdDelinquencySummary {
 
-            private GetLoansLoanIdCollectionData() {}
+            private GetLoansLoanIdDelinquencySummary() {}
 
             @Schema(example = "100.000000")
             public Double availableDisbursementAmount;
@@ -988,6 +1013,47 @@ final class LoansApiResourceSwagger {
             public LocalDate lastRepaymentDate;
             @Schema(example = "100.000000")
             public Double lastRepaymentAmount;
+
+            @Schema(description = "List of GetLoansLoanIdDelinquencyPausePeriod")
+            public List<GetLoansLoanIdDelinquencyPausePeriod> delinquencyPausePeriods;
+
+            @Schema(description = "List of GetLoansLoanIdLoanInstallmentLevelDelinquency")
+            public List<GetLoansLoanIdLoanInstallmentLevelDelinquency> installmentLevelDelinquency;
+
+        }
+
+        static final class GetLoansLoanIdDelinquencyPausePeriod {
+
+            @Schema(example = "true")
+            public Boolean active;
+
+            @Schema(example = "[2022, 07, 05]")
+            public LocalDate pausePeriodStart;
+
+            @Schema(example = "[2022, 07, 10]")
+            public LocalDate pausePeriodEnd;
+
+        }
+
+        static final class GetLoansLoanIdLoanInstallmentLevelDelinquency {
+
+            private GetLoansLoanIdLoanInstallmentLevelDelinquency() {}
+
+            @Schema(example = "112")
+            public Long rangeId;
+
+            @Schema(example = "Delinquency Range 3 to 5 days")
+            public String classification;
+
+            @Schema(example = "3")
+            public Integer minimumAgeDays;
+
+            @Schema(example = "5")
+            public Integer maximumAgeDays;
+
+            @Schema(example = "250.0")
+            public BigDecimal delinquentAmount;
+
         }
 
         @Schema(example = "1")
@@ -1000,25 +1066,25 @@ final class LoansApiResourceSwagger {
         @Schema(example = "false")
         public boolean disallowExpectedDisbursements;
         @Schema(example = "1")
-        public Integer clientId;
+        public Long clientId;
         @Schema(example = "5e77989e-aa11-11bc-b109-0242ac120004")
         public String clientExternalId;
         @Schema(example = "Kampala first Client")
         public String clientName;
         @Schema(example = "2")
-        public Integer clientOfficeId;
+        public Long clientOfficeId;
         @Schema(example = "1")
-        public Integer loanProductId;
+        public Long loanProductId;
         @Schema(example = "Kampala Product (with cash accounting)")
         public String loanProductName;
         @Schema(example = "Typical Kampala loan product with cash accounting enabled for testing.")
         public String loanProductDescription;
         @Schema(example = "22")
-        public Integer loanPurposeId;
+        public Long loanPurposeId;
         @Schema(example = "option.HousingImprovement")
         public String loanPurposeName;
         @Schema(example = "2")
-        public Integer loanOfficerId;
+        public Long loanOfficerId;
         @Schema(example = "LoanOfficer, Kampala")
         public String loanOfficerName;
         public GetLoansLoanIdLoanType loanType;
@@ -1039,11 +1105,13 @@ final class LoansApiResourceSwagger {
         @Schema(example = "1")
         public Integer repaymentEvery;
         public GetLoansLoanIdRepaymentFrequencyType repaymentFrequencyType;
+        @Schema(example = "1")
+        public Integer fixedLength;
         @Schema(example = "24")
-        public Integer interestRatePerPeriod;
+        public BigDecimal interestRatePerPeriod;
         public GetLoansLoanIdInterestRateFrequencyType interestRateFrequencyType;
         @Schema(example = "24")
-        public Integer annualInterestRate;
+        public BigDecimal annualInterestRate;
         @Schema(example = "false")
         public Boolean isFloatingInterestRate;
         public GetLoansLoanIdAmortizationType amortizationType;
@@ -1061,12 +1129,14 @@ final class LoansApiResourceSwagger {
         @Schema(description = "Set of GetLoansLoanIdDisbursementDetails")
         public Set<GetLoansLoanIdDisbursementDetails> disbursementDetails;
         @Schema(description = "Delinquent data")
-        public GetLoansLoanIdCollectionData delinquent;
+        public GetLoansLoanIdDelinquencySummary delinquent;
         @Schema(description = "Set of charges")
         public List<GetLoansLoanIdLoanChargeData> charges;
         public GetDelinquencyRangesResponse delinquencyRange;
         @Schema(example = "false")
         public Boolean fraud;
+        @Schema(example = "false")
+        public Boolean enableInstallmentLevelDelinquency;
         @Schema(example = "250.000000")
         public Double totalOverpaid;
         public LocalDate lastClosedBusinessDate;
@@ -1082,8 +1152,10 @@ final class LoansApiResourceSwagger {
         public BigDecimal disbursedAmountPercentageForDownPayment;
         @Schema(example = "false")
         public Boolean enableAutoRepaymentForDownPayment;
-        @Schema(example = "false")
-        public Boolean disableScheduleExtensionForDownPayment;
+        @Schema(example = "CUMULATIVE")
+        public EnumOptionData loanScheduleType;
+        @Schema(example = "HORIZONTAL")
+        public EnumOptionData loanScheduleProcessingType;
     }
 
     @Schema(description = "GetLoansResponse")
@@ -1131,8 +1203,10 @@ final class LoansApiResourceSwagger {
         public Integer repaymentEvery;
         @Schema(example = "2")
         public Integer repaymentFrequencyType;
+        @Schema(example = "1")
+        public Integer fixedLength;
         @Schema(example = "2")
-        public Integer interestRatePerPeriod;
+        public BigDecimal interestRatePerPeriod;
         @Schema(example = "1")
         public Integer amortizationType;
         @Schema(example = "5.5")
@@ -1167,6 +1241,12 @@ final class LoansApiResourceSwagger {
         public Integer graceOnInterestPayment;
         @Schema(example = "1")
         public Integer graceOnArrearsAgeing;
+        @Schema(example = "HORIZONTAL")
+        public String loanScheduleProcessingType;
+        @Schema(example = "false")
+        public Boolean enableInstallmentLevelDelinquency;
+        @Schema(example = "false")
+        public Boolean enableDownPayment;
     }
 
     @Schema(description = "PostLoansResponse")
@@ -1229,9 +1309,9 @@ final class LoansApiResourceSwagger {
         public Long totalOutstanding;
         public Set<PostLoansRepaymentSchedulePeriods> periods;
         @Schema(example = "2")
-        public Integer officeId;
+        public Long officeId;
         @Schema(example = "1")
-        public Integer clientId;
+        public Long clientId;
         @Schema(example = "1")
         public Long loanId;
         @Schema(example = "1")
@@ -1265,8 +1345,10 @@ final class LoansApiResourceSwagger {
         public Integer repaymentEvery;
         @Schema(example = "0")
         public Integer repaymentFrequencyType;
+        @Schema(example = "1")
+        public Integer fixedLength;
         @Schema(example = "2")
-        public Integer interestRatePerPeriod;
+        public BigDecimal interestRatePerPeriod;
         @Schema(example = "0")
         public Integer interestType;
         @Schema(example = "0")
@@ -1310,6 +1392,12 @@ final class LoansApiResourceSwagger {
         public List<PutLoansLoanIdChanges> charges;
         public List<PutLoansLoanIdCollateral> collateral;
         public List<PutLoansLoanIdDisbursementData> disbursementData;
+        @Schema(example = "HORIZONTAL")
+        public String loanScheduleProcessingType;
+        @Schema(example = "false")
+        public Boolean enableInstallmentLevelDelinquency;
+        @Schema(example = "false")
+        public Boolean enableDownPayment;
 
         static final class PutLoansLoanIdChanges {
 
@@ -1384,9 +1472,9 @@ final class LoansApiResourceSwagger {
         }
 
         @Schema(example = "2")
-        public Integer officeId;
+        public Long officeId;
         @Schema(example = "1")
-        public Integer clientId;
+        public Long clientId;
         @Schema(example = "1")
         public Long loanId;
         @Schema(example = "1")
@@ -1402,9 +1490,9 @@ final class LoansApiResourceSwagger {
         private DeleteLoansLoanIdResponse() {}
 
         @Schema(example = "1")
-        public Integer officeId;
+        public Long officeId;
         @Schema(example = "1")
-        public Integer clientId;
+        public Long clientId;
         @Schema(example = "1")
         public Long loanId;
         @Schema(example = "1")
@@ -1475,7 +1563,7 @@ final class LoansApiResourceSwagger {
             private PostLoansLoanIdStatus() {}
 
             @Schema(example = "300")
-            public Integer id;
+            public Long id;
             @Schema(example = "loanStatusType.approved")
             public String code;
             @Schema(example = "Approved")

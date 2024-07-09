@@ -18,15 +18,16 @@
  */
 package org.apache.fineract.infrastructure.core.exceptionmapper;
 
+import static org.apache.http.HttpStatus.SC_CONFLICT;
+
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import jakarta.ws.rs.core.Response.Status;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.fineract.infrastructure.core.data.ApiGlobalErrorResponse;
+import org.apache.fineract.infrastructure.core.exception.ErrorHandler;
 import org.eclipse.persistence.exceptions.OptimisticLockException;
-import org.springframework.context.annotation.Scope;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Component;
 
@@ -36,21 +37,20 @@ import org.springframework.stereotype.Component;
  */
 @Provider
 @Component
-@Scope("singleton")
 @Slf4j
 public class OptimisticLockExceptionMapper implements FineractExceptionMapper, ExceptionMapper<OptimisticLockException> {
 
     @Override
     public Response toResponse(final OptimisticLockException exception) {
-        log.warn("Exception: {}, Message: {}", exception.getClass().getName(), exception.getMessage());
+        log.warn("Exception occurred", ErrorHandler.findMostSpecificException(exception));
         String type = exception.getQuery() == null ? "unknown" : "query";
         String identifier = "unknown";
         final ApiGlobalErrorResponse dataIntegrityError = ApiGlobalErrorResponse.conflict(type, identifier);
-        return Response.status(Status.CONFLICT).entity(dataIntegrityError).type(MediaType.APPLICATION_JSON).build();
+        return Response.status(SC_CONFLICT).entity(dataIntegrityError).type(MediaType.APPLICATION_JSON).build();
     }
 
     @Override
     public int errorCode() {
-        return 4009;
+        return 4019;
     }
 }

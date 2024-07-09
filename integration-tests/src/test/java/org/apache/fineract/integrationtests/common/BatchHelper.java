@@ -25,7 +25,6 @@ import io.restassured.specification.ResponseSpecification;
 import jakarta.ws.rs.HttpMethod;
 import java.security.SecureRandom;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -36,6 +35,8 @@ import java.util.stream.Collectors;
 import org.apache.fineract.batch.command.internal.CreateTransactionLoanCommandStrategy;
 import org.apache.fineract.batch.domain.BatchRequest;
 import org.apache.fineract.batch.domain.BatchResponse;
+import org.apache.fineract.client.util.JSON;
+import org.apache.fineract.integrationtests.common.error.ErrorResponse;
 import org.apache.fineract.integrationtests.common.savings.SavingsTransactionData;
 import org.junit.jupiter.api.Assertions;
 import org.slf4j.Logger;
@@ -57,6 +58,8 @@ public final class BatchHelper {
 
     private static final String BATCH_API_WITHOUT_ENCLOSING_URL_EXT = BATCH_API_URL + "&enclosingTransaction=false";
     private static final SecureRandom secureRandom = new SecureRandom();
+
+    private static final Gson GSON = new JSON().getGson();
 
     private BatchHelper() {
 
@@ -107,6 +110,14 @@ public final class BatchHelper {
                 jsonifiedBatchRequests, null);
         LOG.info("BatchHelper Response {}", response);
         return BatchHelper.fromJsonString(response);
+    }
+
+    public static ErrorResponse postBatchRequestsWithoutEnclosingTransactionError(final RequestSpecification requestSpec,
+            final ResponseSpecification responseSpec, final String jsonifiedBatchRequests) {
+        final String response = Utils.performServerPost(requestSpec, responseSpec, BATCH_API_WITHOUT_ENCLOSING_URL_EXT,
+                jsonifiedBatchRequests, null);
+        LOG.info("BatchHelper Response {}", response);
+        return GSON.fromJson(response, ErrorResponse.class);
     }
 
     /**
@@ -244,7 +255,7 @@ public final class BatchHelper {
      */
     public static BatchRequest applyLoanRequest(final Long requestId, final Long reference, final Integer productId,
             final Integer clientCollateralId) {
-        return applyLoanRequest(requestId, reference, productId, clientCollateralId, LocalDate.now(ZoneId.systemDefault()).minusDays(10),
+        return applyLoanRequest(requestId, reference, productId, clientCollateralId, LocalDate.now(Utils.getZoneIdOfTenant()).minusDays(10),
                 "10,000.00");
     }
 
@@ -629,7 +640,7 @@ public final class BatchHelper {
      * @return BatchRequest the batch request
      */
     public static BatchRequest approveLoanRequest(final Long requestId, final Long reference) {
-        return approveLoanRequest(requestId, reference, LocalDate.now(ZoneId.systemDefault()).minusDays(10));
+        return approveLoanRequest(requestId, reference, LocalDate.now(Utils.getZoneIdOfTenant()).minusDays(10));
     }
 
     /**
@@ -644,7 +655,7 @@ public final class BatchHelper {
      * @return BatchRequest the batch request
      */
     public static BatchRequest approveLoanWrongRequest(final Long requestId, final Long reference) {
-        return approveLoanWrongRequest(requestId, reference, LocalDate.now(ZoneId.systemDefault()).minusDays(10));
+        return approveLoanWrongRequest(requestId, reference, LocalDate.now(Utils.getZoneIdOfTenant()).minusDays(10));
     }
 
     /**
@@ -669,7 +680,7 @@ public final class BatchHelper {
         br.setMethod("POST");
         String dateString = date.format(DateTimeFormatter.ofPattern("dd MMMM yyyy"));
         br.setBody("{\"locale\": \"en\", \"dateFormat\": \"dd MMMM yyyy\", \"approvedOnDate\": \"" + dateString + "\","
-                + "\"note\": \"Loan approval note\"}");
+                + "\"note\": \"Loan approval note\", \"expectedDisbursementDate\": \"" + dateString + "\"}");
 
         return br;
     }
@@ -700,7 +711,7 @@ public final class BatchHelper {
      * @return BatchRequest the batch request
      */
     public static BatchRequest disburseLoanRequest(final Long requestId, final Long reference) {
-        return disburseLoanRequest(requestId, reference, LocalDate.now(ZoneId.systemDefault()).minusDays(8));
+        return disburseLoanRequest(requestId, reference, LocalDate.now(Utils.getZoneIdOfTenant()).minusDays(8));
     }
 
     /**
@@ -745,7 +756,7 @@ public final class BatchHelper {
      *            the action to transistion
      * @return BatchRequest the batch request
      */
-    public static BatchRequest transistionLoanStateByExternalId(final Long requestId, final Long reference, final LocalDate date,
+    public static BatchRequest transitionLoanStateByExternalId(final Long requestId, final Long reference, final LocalDate date,
             final String command) {
         final BatchRequest br = new BatchRequest();
 
@@ -758,7 +769,7 @@ public final class BatchHelper {
             br.setBody("{\"locale\": \"en\", \"dateFormat\": \"dd MMMM yyyy\", \"actualDisbursementDate\": \"" + dateString + "\"}");
         } else if ("approve".equals(command)) {
             br.setBody("{\"locale\": \"en\", \"dateFormat\": \"dd MMMM yyyy\", \"approvedOnDate\": \"" + dateString + "\","
-                    + "\"note\": \"Loan approval note\"}");
+                    + "\"note\": \"Loan approval note\", \"expectedDisbursementDate\": \"" + dateString + "\"}");
         }
 
         return br;
@@ -776,7 +787,7 @@ public final class BatchHelper {
      * @return BatchRequest the batch request
      */
     public static BatchRequest repayLoanRequest(final Long requestId, final Long reference, final String amount) {
-        return createTransactionRequest(requestId, reference, "repayment", amount, LocalDate.now(ZoneId.systemDefault()));
+        return createTransactionRequest(requestId, reference, "repayment", amount, LocalDate.now(Utils.getZoneIdOfTenant()));
     }
 
     public static BatchRequest repayLoanRequestWithGivenLoanId(final Long requestId, final Integer loanId, final String amount,
@@ -886,7 +897,7 @@ public final class BatchHelper {
      * @return BatchRequest the created {@link BatchRequest}
      */
     public static BatchRequest creditBalanceRefundRequest(final Long requestId, final Long reference, final String amount) {
-        return createTransactionRequest(requestId, reference, "creditBalanceRefund", amount, LocalDate.now(ZoneId.systemDefault()));
+        return createTransactionRequest(requestId, reference, "creditBalanceRefund", amount, LocalDate.now(Utils.getZoneIdOfTenant()));
     }
 
     /**
@@ -903,7 +914,24 @@ public final class BatchHelper {
      * @return BatchRequest the created {@link BatchRequest}
      */
     public static BatchRequest goodwillCreditRequest(final Long requestId, final Long reference, final String amount) {
-        return createTransactionRequest(requestId, reference, "goodwillCredit", amount, LocalDate.now(ZoneId.systemDefault()));
+        return createTransactionRequest(requestId, reference, "goodwillCredit", amount, LocalDate.now(Utils.getZoneIdOfTenant()));
+    }
+
+    /**
+     * Creates and returns a {@link CreateTransactionLoanCommandStrategy} request with given request ID for payment
+     * waiver transaction.
+     *
+     *
+     * @param requestId
+     *            the request ID
+     * @param reference
+     *            the reference
+     * @param amount
+     *            the amount
+     * @return BatchRequest the created {@link BatchRequest}
+     */
+    public static BatchRequest interestPaymentWaiverRequest(final Long requestId, final Long reference, final String amount) {
+        return createTransactionRequest(requestId, reference, "interestPaymentWaiver", amount, LocalDate.now(Utils.getZoneIdOfTenant()));
     }
 
     /**
@@ -920,7 +948,7 @@ public final class BatchHelper {
      * @return BatchRequest the created {@link BatchRequest}
      */
     public static BatchRequest merchantIssuedRefundRequest(final Long requestId, final Long reference, final String amount) {
-        return createTransactionRequest(requestId, reference, "merchantIssuedRefund", amount, LocalDate.now(ZoneId.systemDefault()));
+        return createTransactionRequest(requestId, reference, "merchantIssuedRefund", amount, LocalDate.now(Utils.getZoneIdOfTenant()));
     }
 
     /**
@@ -937,7 +965,7 @@ public final class BatchHelper {
      * @return BatchRequest the created {@link BatchRequest}
      */
     public static BatchRequest payoutRefundRequest(final Long requestId, final Long reference, final String amount) {
-        return createTransactionRequest(requestId, reference, "payoutRefund", amount, LocalDate.now(ZoneId.systemDefault()));
+        return createTransactionRequest(requestId, reference, "payoutRefund", amount, LocalDate.now(Utils.getZoneIdOfTenant()));
     }
 
     /**
@@ -965,8 +993,8 @@ public final class BatchHelper {
         br.setReference(reference);
         br.setRelativeUrl("v1/rescheduleloans");
         br.setMethod("POST");
-        final LocalDate today = LocalDate.now(ZoneId.systemDefault());
-        final LocalDate adjustedDueDate = LocalDate.now(ZoneId.systemDefault()).plusDays(40);
+        final LocalDate today = LocalDate.now(Utils.getZoneIdOfTenant());
+        final LocalDate adjustedDueDate = LocalDate.now(Utils.getZoneIdOfTenant()).plusDays(40);
         final String submittedOnDate = today.format(DateTimeFormatter.ofPattern("dd MMMM yyyy"));
         final String rescheduleFromDateString = rescheduleFromDate.format(DateTimeFormatter.ofPattern("dd MMMM yyyy"));
         final String adjustedDueDateString = adjustedDueDate.format(DateTimeFormatter.ofPattern("dd MMMM yyyy"));
@@ -995,7 +1023,7 @@ public final class BatchHelper {
         br.setReference(reference);
         br.setRelativeUrl("v1/rescheduleloans/$.resourceId?command=approve");
         br.setMethod("POST");
-        final LocalDate approvedOnDate = LocalDate.now(ZoneId.systemDefault());
+        final LocalDate approvedOnDate = LocalDate.now(Utils.getZoneIdOfTenant());
         final String approvedOnDateString = approvedOnDate.format(DateTimeFormatter.ofPattern("dd MMMM yyyy"));
         br.setBody(String.format("{\"locale\": \"en\", \"dateFormat\": \"dd MMMM yyyy\", " + "\"approvedOnDate\": \"%s\"}",
                 approvedOnDateString));
@@ -1010,7 +1038,7 @@ public final class BatchHelper {
      * @param responseSpec
      * @param externalId
      */
-    public static void verifyClientCreatedOnServer(final RequestSpecification requestSpec, final ResponseSpecification responseSpec,
+    public static void verifyClientNotCreatedOnServer(final RequestSpecification requestSpec, final ResponseSpecification responseSpec,
             final String externalId) {
         LOG.info("------------------------------CHECK CLIENT DETAILS------------------------------------\n");
         final String CLIENT_URL = "/fineract-provider/api/v1/clients?externalId=" + externalId + "&" + Utils.TENANT_IDENTIFIER;
@@ -1564,7 +1592,7 @@ public final class BatchHelper {
      * @return BatchRequest the created {@link BatchRequest}
      */
     public static BatchRequest depositSavingAccount(final Long requestId, final Long reference, final float amount) {
-        final LocalDate transactionDate = LocalDate.now(ZoneId.systemDefault());
+        final LocalDate transactionDate = LocalDate.now(Utils.getZoneIdOfTenant());
         final String transactionDateString = transactionDate.format(DateTimeFormatter.ofPattern("dd MMMM yyyy"));
         String json = String.format(
                 "{\"locale\": \"en\", \"dateFormat\": \"dd MMMM yyyy\", "
@@ -1586,7 +1614,7 @@ public final class BatchHelper {
      * @return BatchRequest the created {@link BatchRequest}
      */
     public static BatchRequest withdrawSavingAccount(final Long requestId, final Long reference, final float amount) {
-        final LocalDate transactionDate = LocalDate.now(ZoneId.systemDefault());
+        final LocalDate transactionDate = LocalDate.now(Utils.getZoneIdOfTenant());
         final String transactionDateString = transactionDate.format(DateTimeFormatter.ofPattern("dd MMMM yyyy"));
         String json = String.format(
                 "{\"locale\": \"en\", \"dateFormat\": \"dd MMMM yyyy\", "
@@ -1645,7 +1673,7 @@ public final class BatchHelper {
         br.setReference(reference);
         br.setRelativeUrl("v1/savingsaccounts/$.id/transactions?command=holdAmount");
         br.setMethod(HttpMethod.POST);
-        final LocalDate transactionDate = LocalDate.now(ZoneId.systemDefault());
+        final LocalDate transactionDate = LocalDate.now(Utils.getZoneIdOfTenant());
         final String transactionDateString = transactionDate.format(DateTimeFormatter.ofPattern("dd MMMM yyyy"));
         br.setBody(String.format(
                 "{\"locale\": \"en\", \"dateFormat\": \"dd MMMM yyyy\", "

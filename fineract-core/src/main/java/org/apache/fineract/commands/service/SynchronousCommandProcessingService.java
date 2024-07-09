@@ -20,7 +20,6 @@ package org.apache.fineract.commands.service;
 
 import static org.apache.fineract.commands.domain.CommandProcessingResultType.ERROR;
 import static org.apache.fineract.commands.domain.CommandProcessingResultType.PROCESSED;
-import static org.apache.fineract.commands.domain.CommandProcessingResultType.UNDER_PROCESSING;
 import static org.apache.http.HttpStatus.SC_OK;
 
 import com.google.gson.Gson;
@@ -28,30 +27,28 @@ import com.google.gson.reflect.TypeToken;
 import io.github.resilience4j.retry.annotation.Retry;
 import java.lang.reflect.Type;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Function;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.fineract.batch.exception.ErrorHandler;
 import org.apache.fineract.batch.exception.ErrorInfo;
 import org.apache.fineract.commands.domain.CommandProcessingResultType;
 import org.apache.fineract.commands.domain.CommandSource;
 import org.apache.fineract.commands.domain.CommandWrapper;
-import org.apache.fineract.commands.exception.RollbackTransactionAsCommandIsNotApprovedByCheckerException;
 import org.apache.fineract.commands.exception.UnsupportedCommandException;
 import org.apache.fineract.commands.handler.NewCommandSourceHandler;
 import org.apache.fineract.commands.provider.CommandHandlerProvider;
 import org.apache.fineract.infrastructure.configuration.domain.ConfigurationDomainService;
 import org.apache.fineract.infrastructure.core.api.JsonCommand;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
-import org.apache.fineract.infrastructure.core.data.CommandProcessingResultBuilder;
 import org.apache.fineract.infrastructure.core.domain.BatchRequestContextHolder;
 import org.apache.fineract.infrastructure.core.domain.FineractRequestContextHolder;
-import org.apache.fineract.infrastructure.core.exception.AbstractIdempotentCommandException;
+import org.apache.fineract.infrastructure.core.exception.ErrorHandler;
 import org.apache.fineract.infrastructure.core.exception.IdempotentCommandProcessFailedException;
 import org.apache.fineract.infrastructure.core.exception.IdempotentCommandProcessSucceedException;
 import org.apache.fineract.infrastructure.core.exception.IdempotentCommandProcessUnderProcessingException;
+import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidationException;
 import org.apache.fineract.infrastructure.core.serialization.GoogleGsonSerializerHelper;
 import org.apache.fineract.infrastructure.core.serialization.ToApiJsonSerializer;
 import org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil;
@@ -61,7 +58,6 @@ import org.apache.fineract.infrastructure.security.service.PlatformSecurityConte
 import org.apache.fineract.useradministration.domain.AppUser;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Slf4j
@@ -79,9 +75,7 @@ public class SynchronousCommandProcessingService implements CommandProcessingSer
     private final ConfigurationDomainService configurationDomainService;
     private final CommandHandlerProvider commandHandlerProvider;
     private final IdempotencyKeyResolver idempotencyKeyResolver;
-    private final IdempotencyKeyGenerator idempotencyKeyGenerator;
     private final CommandSourceService commandSourceService;
-    private final ErrorHandler errorHandler;
 
     private final FineractRequestContextHolder fineractRequestContextHolder;
     private final Gson gson = GoogleGsonSerializerHelper.createSimpleGson();
@@ -95,10 +89,14 @@ public class SynchronousCommandProcessingService implements CommandProcessingSer
 
         Long commandId = (Long) fineractRequestContextHolder.getAttribute(COMMAND_SOURCE_ID, null);
         boolean isRetry = commandId != null;
+        boolean isEnclosingTransaction = BatchRequestContextHolder.isEnclosingTransaction();
 
         CommandSource commandSource = null;
         String idempotencyKey;
         if (isRetry) {
+            commandSource = commandSourceService.getCommandSource(commandId);
+            idempotencyKey = commandSource.getIdempotencyKey();
+        } else if ((commandId = command.commandId()) != null) { // action on the command itself
             commandSource = commandSourceService.getCommandSource(commandId);
             idempotencyKey = commandSource.getIdempotencyKey();
         } else {
@@ -106,58 +104,57 @@ public class SynchronousCommandProcessingService implements CommandProcessingSer
         }
         exceptionWhenTheRequestAlreadyProcessed(wrapper, idempotencyKey, isRetry);
 
-        boolean sameTransaction = BatchRequestContextHolder.getEnclosingTransaction().isPresent();
+        AppUser user = context.authenticatedUser(wrapper);
         if (commandSource == null) {
-            AppUser user = context.authenticatedUser(wrapper);
-            commandSource = sameTransaction ? commandSourceService.saveInitialSameTransaction(wrapper, command, user, idempotencyKey)
-                    : commandSourceService.saveInitialNewTransaction(wrapper, command, user, idempotencyKey);
+            if (isEnclosingTransaction) {
+                commandSource = commandSourceService.getInitialCommandSource(wrapper, command, user, idempotencyKey);
+            } else {
+                commandSource = commandSourceService.saveInitialNewTransaction(wrapper, command, user, idempotencyKey);
+                commandId = commandSource.getId();
+            }
+        }
+        if (commandId != null) {
             storeCommandIdInContext(commandSource); // Store command id as a request attribute
+        }
+
+        boolean isMakerChecker = configurationDomainService.isMakerCheckerEnabledForTask(wrapper.taskPermissionName());
+        if (isApprovedByChecker || (isMakerChecker && user.isCheckerSuperUser())) {
+            commandSource.markAsChecked(user);
         }
         setIdempotencyKeyStoreFlag(true);
 
         final CommandProcessingResult result;
         try {
-            result = findCommandHandler(wrapper).processCommand(command);
+            result = commandSourceService.processCommand(findCommandHandler(wrapper), command, commandSource, user, isApprovedByChecker,
+                    isMakerChecker);
         } catch (Throwable t) { // NOSONAR
-            ErrorInfo errorInfo = commandSourceService.generateErrorInfo(t);
-            commandSource.setResultStatusCode(errorInfo.getStatusCode());
+            RuntimeException mappable = ErrorHandler.getMappable(t);
+            ErrorInfo errorInfo = commandSourceService.generateErrorInfo(mappable);
+            Integer statusCode = errorInfo.getStatusCode();
+            commandSource.setResultStatusCode(statusCode);
             commandSource.setResult(errorInfo.getMessage());
-            commandSource.setStatus(ERROR);
-            commandSource = sameTransaction ? commandSourceService.saveResultSameTransaction(commandSource)
-                    : commandSourceService.saveResultNewTransaction(commandSource);
+            if (statusCode != SC_OK) {
+                commandSource.setStatus(ERROR);
+            }
+            if (!isEnclosingTransaction) { // TODO: temporary solution
+                commandSource = commandSourceService.saveResultNewTransaction(commandSource);
+            }
+            // must not throw any exception; must persist in new transaction as the current transaction was already
+            // marked as rollback
             publishHookErrorEvent(wrapper, command, errorInfo);
-            throw t;
+            throw mappable;
         }
 
+        commandSource.setResultStatusCode(SC_OK);
         commandSource.updateForAudit(result);
         commandSource.setResult(toApiJsonSerializer.serializeResult(result));
-        commandSource.setResultStatusCode(SC_OK);
         commandSource.setStatus(PROCESSED);
-
-        boolean isRollback = !isApprovedByChecker && (result.isRollbackTransaction()
-                || configurationDomainService.isMakerCheckerEnabledForTask(wrapper.taskPermissionName()));
-        // TODO: this should be removed, can not override audit information (and maker-checker does not work)
-        if (!isRollback && result.hasChanges()) {
-            commandSource.setCommandJson(toApiJsonSerializer.serializeResult(result.getChanges()));
-        }
-
         commandSource = commandSourceService.saveResultSameTransaction(commandSource);
-
-        if (isRollback) {
-            /*
-             * JournalEntry will generate a new transactionId every time. Updating the transactionId with old
-             * transactionId, because as there are no entries are created with new transactionId, will throw an error
-             * when checker approves the transaction
-             */
-            commandSource.setTransactionId(command.getTransactionId());
-            // TODO: this should be removed together with lines 133-135
-            commandSource.setCommandJson(command.json()); // Set back CommandSource json data
-            throw new RollbackTransactionAsCommandIsNotApprovedByCheckerException(commandSource);
-        }
+        storeCommandIdInContext(commandSource); // Store command id as a request attribute
 
         result.setRollbackTransaction(null);
-        publishHookEvent(wrapper.entityName(), wrapper.actionName(), command, result);
-
+        publishHookEvent(wrapper.entityName(), wrapper.actionName(), command, result); // TODO must be performed in a
+                                                                                       // new transaction
         return result;
     }
 
@@ -174,23 +171,21 @@ public class SynchronousCommandProcessingService implements CommandProcessingSer
     }
 
     private void exceptionWhenTheRequestAlreadyProcessed(CommandWrapper wrapper, String idempotencyKey, boolean retry) {
-        CommandSource existingCommand = commandSourceService.findCommandSource(wrapper, idempotencyKey);
-        if (existingCommand != null) {
-            idempotentExceptionByStatus(UNDER_PROCESSING, existingCommand,
-                    command -> new IdempotentCommandProcessUnderProcessingException(wrapper));
-            if (!retry) {
-                idempotentExceptionByStatus(ERROR, existingCommand,
-                        command -> new IdempotentCommandProcessFailedException(wrapper, command));
-            }
-            idempotentExceptionByStatus(PROCESSED, existingCommand,
-                    command -> new IdempotentCommandProcessSucceedException(wrapper, command.getResult(), command.getResultStatusCode()));
+        CommandSource command = commandSourceService.findCommandSource(wrapper, idempotencyKey);
+        if (command == null) {
+            return;
         }
-    }
-
-    private void idempotentExceptionByStatus(CommandProcessingResultType status, CommandSource command,
-            Function<CommandSource, AbstractIdempotentCommandException> exceptionMapper) {
-        if (status.getValue().equals(command.getStatus())) {
-            throw exceptionMapper.apply(command);
+        CommandProcessingResultType status = CommandProcessingResultType.fromInt(command.getStatus());
+        switch (status) {
+            case UNDER_PROCESSING -> throw new IdempotentCommandProcessUnderProcessingException(wrapper, idempotencyKey);
+            case PROCESSED -> throw new IdempotentCommandProcessSucceedException(wrapper, idempotencyKey, command);
+            case ERROR -> {
+                if (!retry) {
+                    throw new IdempotentCommandProcessFailedException(wrapper, idempotencyKey, command);
+                }
+            }
+            default -> {
+            }
         }
     }
 
@@ -198,25 +193,9 @@ public class SynchronousCommandProcessingService implements CommandProcessingSer
         fineractRequestContextHolder.setAttribute(IDEMPOTENCY_KEY_STORE_FLAG, flag);
     }
 
-    @Transactional
-    @Override
-    public CommandProcessingResult logCommand(CommandSource commandSource) {
-        commandSource.markAsAwaitingApproval();
-        if (commandSource.getIdempotencyKey() == null) {
-            commandSource.setIdempotencyKey(idempotencyKeyGenerator.create());
-        }
-        commandSource = commandSourceService.saveResultSameTransaction(commandSource);
-
-        return new CommandProcessingResultBuilder().withCommandId(commandSource.getId()).withEntityId(commandSource.getResourceId())
-                .build();
-    }
-
     @SuppressWarnings("unused")
-    private CommandProcessingResult fallbackExecuteCommand(Exception e) {
-        if (e instanceof RollbackTransactionAsCommandIsNotApprovedByCheckerException ex) {
-            return logCommand(ex.getCommandSourceResult());
-        }
-        throw errorHandler.getMappable(e);
+    public CommandProcessingResult fallbackExecuteCommand(Exception e) {
+        throw ErrorHandler.getMappable(e);
     }
 
     private NewCommandSourceHandler findCommandHandler(final CommandWrapper wrapper) {
@@ -278,62 +257,73 @@ public class SynchronousCommandProcessingService implements CommandProcessingSer
     }
 
     @Override
-    public boolean validateCommand(final CommandWrapper commandWrapper, final AppUser user) {
-        boolean rollbackTransaction = configurationDomainService.isMakerCheckerEnabledForTask(commandWrapper.taskPermissionName());
+    public boolean validateRollbackCommand(final CommandWrapper commandWrapper, final AppUser user) {
         user.validateHasPermissionTo(commandWrapper.getTaskPermissionName());
-        return rollbackTransaction;
+        boolean isMakerChecker = configurationDomainService.isMakerCheckerEnabledForTask(commandWrapper.taskPermissionName());
+        return isMakerChecker && !user.isCheckerSuperUser();
     }
 
-    private void publishHookEvent(final String entityName, final String actionName, JsonCommand command, final Object result) {
-        try {
-            final AppUser appUser = context.authenticatedUser(CommandWrapper.wrap(actionName, entityName, null, null));
+    protected void publishHookEvent(final String entityName, final String actionName, JsonCommand command, final Object result) {
 
-            final HookEventSource hookEventSource = new HookEventSource(entityName, actionName);
+        final AppUser appUser = context.authenticatedUser(CommandWrapper.wrap(actionName, entityName, null, null));
 
-            // TODO: Add support for publishing array events
-            if (command.json() != null && command.json().startsWith("{")) {
-                Type type = new TypeToken<Map<String, Object>>() {
+        final HookEventSource hookEventSource = new HookEventSource(entityName, actionName);
 
-                }.getType();
-                Map<String, Object> myMap = gson.fromJson(command.json(), type);
+        // TODO: Add support for publishing array events
+        if (command.json() != null) {
+            Type type = new TypeToken<Map<String, Object>>() {
 
-                Map<String, Object> reqmap = new HashMap<>();
-                reqmap.put("entityName", entityName);
-                reqmap.put("actionName", actionName);
-                reqmap.put("createdBy", context.authenticatedUser().getId());
-                reqmap.put("createdByName", context.authenticatedUser().getUsername());
-                reqmap.put("createdByFullName", context.authenticatedUser().getDisplayName());
+            }.getType();
 
-                reqmap.put("request", myMap);
-                if (result instanceof CommandProcessingResult) {
-                    CommandProcessingResult resultCopy = CommandProcessingResult
-                            .fromCommandProcessingResult((CommandProcessingResult) result);
+            Map<String, Object> myMap;
 
-                    reqmap.put("officeId", resultCopy.getOfficeId());
-                    reqmap.put("clientId", resultCopy.getClientId());
-                    resultCopy.setOfficeId(null);
-                    reqmap.put("response", resultCopy);
-                } else if (result instanceof ErrorInfo ex) {
-                    reqmap.put("status", "Exception");
+            try {
+                myMap = gson.fromJson(command.json(), type);
+            } catch (Exception e) {
+                throw new PlatformApiDataValidationException("error.msg.invalid.json", "The provided JSON is invalid.", new ArrayList<>(),
+                        e);
+            }
 
-                    Map<String, Object> errorMap = gson.fromJson(ex.getMessage(), type);
-                    errorMap.put("errorCode", ex.getErrorCode());
-                    errorMap.put("statusCode", ex.getStatusCode());
+            Map<String, Object> reqmap = new HashMap<>();
+            reqmap.put("entityName", entityName);
+            reqmap.put("actionName", actionName);
+            reqmap.put("createdBy", context.authenticatedUser().getId());
+            reqmap.put("createdByName", context.authenticatedUser().getUsername());
+            reqmap.put("createdByFullName", context.authenticatedUser().getDisplayName());
 
-                    reqmap.put("response", errorMap);
+            reqmap.put("request", myMap);
+            if (result instanceof CommandProcessingResult) {
+                CommandProcessingResult resultCopy = CommandProcessingResult.fromCommandProcessingResult((CommandProcessingResult) result);
+
+                reqmap.put("officeId", resultCopy.getOfficeId());
+                reqmap.put("clientId", resultCopy.getClientId());
+                resultCopy.setOfficeId(null);
+                reqmap.put("response", resultCopy);
+            } else if (result instanceof ErrorInfo ex) {
+                reqmap.put("status", "Exception");
+
+                Map<String, Object> errorMap = new HashMap<>();
+
+                try {
+                    errorMap = gson.fromJson(ex.getMessage(), type);
+                } catch (Exception e) {
+                    errorMap.put("errorMessage", ex.getMessage());
                 }
 
-                reqmap.put("timestamp", Instant.now().toString());
+                errorMap.put("errorCode", ex.getErrorCode());
+                errorMap.put("statusCode", ex.getStatusCode());
 
-                final String serializedResult = toApiResultJsonSerializer.serialize(reqmap);
-
-                final HookEvent applicationEvent = new HookEvent(hookEventSource, serializedResult, appUser,
-                        ThreadLocalContextUtil.getContext());
-
-                applicationContext.publishEvent(applicationEvent);
+                reqmap.put("response", errorMap);
             }
-        } catch (Exception e) {
-            log.error("Error", e);
+
+            reqmap.put("timestamp", Instant.now().toString());
+
+            final String serializedResult = toApiResultJsonSerializer.serialize(reqmap);
+
+            final HookEvent applicationEvent = new HookEvent(hookEventSource, serializedResult, appUser,
+                    ThreadLocalContextUtil.getContext());
+
+            applicationContext.publishEvent(applicationEvent);
         }
     }
 }

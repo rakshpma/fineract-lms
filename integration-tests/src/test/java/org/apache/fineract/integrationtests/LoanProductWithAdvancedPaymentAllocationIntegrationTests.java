@@ -44,6 +44,8 @@ import org.apache.fineract.integrationtests.common.accounting.FinancialActivityA
 import org.apache.fineract.integrationtests.common.loans.LoanProductTestBuilder;
 import org.apache.fineract.integrationtests.common.loans.LoanTestLifecycleExtension;
 import org.apache.fineract.integrationtests.common.loans.LoanTransactionHelper;
+import org.apache.fineract.portfolio.loanaccount.loanschedule.domain.LoanScheduleProcessingType;
+import org.apache.fineract.portfolio.loanaccount.loanschedule.domain.LoanScheduleType;
 import org.apache.fineract.portfolio.loanproduct.domain.PaymentAllocationType;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -233,12 +235,70 @@ public class LoanProductWithAdvancedPaymentAllocationIntegrationTests {
                 loanProductError.get(0).get("defaultUserMessage"));
     }
 
+    @Test
+    public void testCreateAndReadLoanProductWithAdvancedPaymentAndInterestPaymentWaiverTransaction() {
+        // given
+        AdvancedPaymentData defaultAllocation = createDefaultPaymentAllocation();
+        AdvancedPaymentData interestPaymentWaiverAllocation = createInterestPaymentWaiverAllocation();
+
+        // when
+        Integer loanProductId = LOAN_TRANSACTION_HELPER
+                .getLoanProductId(createLoanJSON(defaultAllocation, interestPaymentWaiverAllocation));
+        Assertions.assertNotNull(loanProductId);
+        GetLoanProductsProductIdResponse loanProduct = LOAN_TRANSACTION_HELPER.getLoanProduct(loanProductId);
+
+        // then
+        Assertions.assertNotNull(loanProduct.getPaymentAllocation());
+        Assertions.assertEquals(2, loanProduct.getPaymentAllocation().size());
+        Optional<AdvancedPaymentData> first = loanProduct.getPaymentAllocation().stream()
+                .filter(advancedPaymentData -> "DEFAULT".equals(advancedPaymentData.getTransactionType())).findFirst();
+        Assertions.assertTrue(first.isPresent());
+        Assertions.assertEquals(defaultAllocation, first.get());
+
+        Optional<AdvancedPaymentData> second = loanProduct.getPaymentAllocation().stream()
+                .filter(advancedPaymentData -> "INTEREST_PAYMENT_WAIVER".equals(advancedPaymentData.getTransactionType())).findFirst();
+        Assertions.assertTrue(second.isPresent());
+        Assertions.assertEquals(interestPaymentWaiverAllocation, second.get());
+    }
+
+    @Test
+    public void testUpdateLoanProductInterestPaymentWaiverAllocationIsAdded() {
+        // given a loan with one allocation
+        AdvancedPaymentData defaultAllocation = createDefaultPaymentAllocation();
+        AdvancedPaymentData interestPaymentWaiverAllocation = createInterestPaymentWaiverAllocation();
+        Integer loanProductId = LOAN_TRANSACTION_HELPER.getLoanProductId(createLoanJSON(defaultAllocation));
+        Assertions.assertNotNull(loanProductId);
+        GetLoanProductsProductIdResponse loanProduct = LOAN_TRANSACTION_HELPER.getLoanProduct(loanProductId);
+        Assertions.assertNotNull(loanProduct.getPaymentAllocation());
+        Assertions.assertEquals(1, loanProduct.getPaymentAllocation().size());
+
+        // when a new allocation is added
+        LOAN_TRANSACTION_HELPER.updateLoanProduct(loanProductId.longValue(),
+                updateLoanProductRequest(defaultAllocation, interestPaymentWaiverAllocation));
+
+        // then it shall be added.
+        loanProduct = LOAN_TRANSACTION_HELPER.getLoanProduct(loanProductId);
+        Assertions.assertNotNull(loanProduct.getPaymentAllocation());
+        Assertions.assertEquals(2, loanProduct.getPaymentAllocation().size());
+        Optional<AdvancedPaymentData> first = loanProduct.getPaymentAllocation().stream()
+                .filter(advancedPaymentData -> "DEFAULT".equals(advancedPaymentData.getTransactionType())).findFirst();
+        Assertions.assertTrue(first.isPresent());
+        Assertions.assertEquals(defaultAllocation, first.get());
+
+        Optional<AdvancedPaymentData> second = loanProduct.getPaymentAllocation().stream()
+                .filter(advancedPaymentData -> "INTEREST_PAYMENT_WAIVER".equals(advancedPaymentData.getTransactionType())).findFirst();
+        Assertions.assertTrue(second.isPresent());
+        Assertions.assertEquals(interestPaymentWaiverAllocation, second.get());
+    }
+
     private String createLoanJSON(AdvancedPaymentData... advancedPaymentData) {
         return new LoanProductTestBuilder().withPrincipal("15,000.00").withNumberOfRepayments("4").withRepaymentAfterEvery("1")
                 .withRepaymentTypeAsMonth().withinterestRatePerPeriod("1")
                 .withAccountingRulePeriodicAccrual(new Account[] { ASSET_ACCOUNT, EXPENSE_ACCOUNT, INCOME_ACCOUNT, OVERPAYMENT_ACCOUNT })
                 .withInterestRateFrequencyTypeAsMonths().withAmortizationTypeAsEqualInstallments().withInterestTypeAsDecliningBalance()
-                .withFeeAndPenaltyAssetAccount(FEE_PENALTY_ACCOUNT).addAdvancedPaymentAllocation(advancedPaymentData).build();
+                .withFeeAndPenaltyAssetAccount(FEE_PENALTY_ACCOUNT).addAdvancedPaymentAllocation(advancedPaymentData)
+                .withLoanScheduleType(LoanScheduleType.PROGRESSIVE).withLoanScheduleProcessingType(LoanScheduleProcessingType.HORIZONTAL)
+                .build();
     }
 
     private PutLoanProductsProductIdRequest updateLoanProductRequest(AdvancedPaymentData... advancedPaymentData) {
@@ -263,7 +323,20 @@ public class LoanProductWithAdvancedPaymentAllocationIntegrationTests {
                 PaymentAllocationType.DUE_PENALTY, PaymentAllocationType.DUE_FEE, PaymentAllocationType.DUE_INTEREST,
                 PaymentAllocationType.DUE_PRINCIPAL, PaymentAllocationType.IN_ADVANCE_PENALTY, PaymentAllocationType.IN_ADVANCE_FEE,
                 PaymentAllocationType.IN_ADVANCE_PRINCIPAL, PaymentAllocationType.IN_ADVANCE_INTEREST);
+        advancedPaymentData.setPaymentAllocationOrder(paymentAllocationOrders);
+        return advancedPaymentData;
+    }
 
+    private AdvancedPaymentData createInterestPaymentWaiverAllocation() {
+        AdvancedPaymentData advancedPaymentData = new AdvancedPaymentData();
+        advancedPaymentData.setTransactionType("INTEREST_PAYMENT_WAIVER");
+        advancedPaymentData.setFutureInstallmentAllocationRule("NEXT_INSTALLMENT");
+
+        List<PaymentAllocationOrder> paymentAllocationOrders = getPaymentAllocationOrder(PaymentAllocationType.PAST_DUE_FEE,
+                PaymentAllocationType.PAST_DUE_PENALTY, PaymentAllocationType.PAST_DUE_INTEREST, PaymentAllocationType.PAST_DUE_PRINCIPAL,
+                PaymentAllocationType.DUE_PENALTY, PaymentAllocationType.DUE_FEE, PaymentAllocationType.DUE_INTEREST,
+                PaymentAllocationType.DUE_PRINCIPAL, PaymentAllocationType.IN_ADVANCE_PENALTY, PaymentAllocationType.IN_ADVANCE_FEE,
+                PaymentAllocationType.IN_ADVANCE_PRINCIPAL, PaymentAllocationType.IN_ADVANCE_INTEREST);
         advancedPaymentData.setPaymentAllocationOrder(paymentAllocationOrders);
         return advancedPaymentData;
     }

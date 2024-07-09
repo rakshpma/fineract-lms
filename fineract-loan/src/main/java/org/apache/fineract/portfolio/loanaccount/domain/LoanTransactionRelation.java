@@ -32,7 +32,7 @@ import org.apache.fineract.infrastructure.core.domain.AbstractAuditableWithUTCDa
 @Getter
 @Entity
 @Table(name = "m_loan_transaction_relation")
-public class LoanTransactionRelation extends AbstractAuditableWithUTCDateTimeCustom {
+public class LoanTransactionRelation extends AbstractAuditableWithUTCDateTimeCustom<Long> {
 
     @ManyToOne
     @JoinColumn(name = "from_loan_transaction_id", nullable = false)
@@ -62,7 +62,9 @@ public class LoanTransactionRelation extends AbstractAuditableWithUTCDateTimeCus
 
     public static LoanTransactionRelation linkToTransaction(@NotNull LoanTransaction fromTransaction,
             @NotNull LoanTransaction toTransaction, LoanTransactionRelationTypeEnum relation) {
-        return new LoanTransactionRelation(fromTransaction, toTransaction, null, relation);
+        LoanTransactionRelation loanTransactionRelation = new LoanTransactionRelation(fromTransaction, toTransaction, null, relation);
+        fromTransaction.getLoanTransactionRelations().add(loanTransactionRelation);
+        return loanTransactionRelation;
     }
 
     public static LoanTransactionRelation linkToCharge(@NotNull LoanTransaction fromTransaction, @NotNull LoanCharge loanCharge,

@@ -21,6 +21,7 @@ package org.apache.fineract.portfolio.loanaccount.domain;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
+import org.apache.fineract.infrastructure.core.service.DateUtils;
 import org.apache.fineract.organisation.monetary.domain.MonetaryCurrency;
 import org.apache.fineract.organisation.monetary.domain.Money;
 import org.springframework.stereotype.Component;
@@ -44,7 +45,25 @@ public final class LoanSummaryWrapper {
             final MonetaryCurrency currency) {
         Money total = Money.zero(currency);
         for (final LoanRepaymentScheduleInstallment installment : repaymentScheduleInstallments) {
-            total = total.plus(installment.getCredits(currency));
+            total = total.plus(installment.getCreditedPrincipal(currency));
+        }
+        return total;
+    }
+
+    public Money calculateTotalFeeAdjusted(final List<LoanRepaymentScheduleInstallment> repaymentScheduleInstallments,
+            final MonetaryCurrency currency) {
+        Money total = Money.zero(currency);
+        for (final LoanRepaymentScheduleInstallment installment : repaymentScheduleInstallments) {
+            total = total.plus(installment.getCreditedFee(currency));
+        }
+        return total;
+    }
+
+    public Money calculateTotalPenaltyAdjusted(final List<LoanRepaymentScheduleInstallment> repaymentScheduleInstallments,
+            final MonetaryCurrency currency) {
+        Money total = Money.zero(currency);
+        for (final LoanRepaymentScheduleInstallment installment : repaymentScheduleInstallments) {
+            total = total.plus(installment.getCreditedPenalty(currency));
         }
         return total;
     }
@@ -230,7 +249,7 @@ public final class LoanSummaryWrapper {
         if (totalOverdue.isGreaterThanZero()) {
             for (final LoanRepaymentScheduleInstallment installment : repaymentScheduleInstallments) {
                 if (installment.isOverdueOn(from)) {
-                    if (overdueSince == null || overdueSince.isAfter(installment.getDueDate())) {
+                    if (overdueSince == null || DateUtils.isAfter(overdueSince, installment.getDueDate())) {
                         overdueSince = installment.getDueDate();
                     }
                 }
@@ -246,7 +265,8 @@ public final class LoanSummaryWrapper {
             return total;
         }
         for (final LoanCharge loanCharge : charges) {
-            if (!loanCharge.isPenaltyCharge() && loanCharge.getAmountPaid(currency).isGreaterThanZero()) {
+            if (!loanCharge.isPenaltyCharge() && loanCharge.getAmountPaid(currency).isGreaterThanZero()
+                    && loanCharge.isDisbursementCharge()) {
                 total = total.plus(loanCharge.getAmountPaid(currency));
             }
         }

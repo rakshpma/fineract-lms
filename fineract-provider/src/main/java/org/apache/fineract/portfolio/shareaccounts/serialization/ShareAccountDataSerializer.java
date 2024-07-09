@@ -46,6 +46,7 @@ import org.apache.fineract.infrastructure.core.service.DateUtils;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.organisation.monetary.domain.MonetaryCurrency;
 import org.apache.fineract.organisation.monetary.domain.Money;
+import org.apache.fineract.organisation.monetary.exception.InvalidCurrencyException;
 import org.apache.fineract.portfolio.accounts.constants.ShareAccountApiConstants;
 import org.apache.fineract.portfolio.charge.domain.Charge;
 import org.apache.fineract.portfolio.charge.domain.ChargeCalculationType;
@@ -54,7 +55,6 @@ import org.apache.fineract.portfolio.charge.domain.ChargeTimeType;
 import org.apache.fineract.portfolio.client.domain.Client;
 import org.apache.fineract.portfolio.client.domain.ClientRepositoryWrapper;
 import org.apache.fineract.portfolio.common.domain.PeriodFrequencyType;
-import org.apache.fineract.portfolio.loanproduct.exception.InvalidCurrencyException;
 import org.apache.fineract.portfolio.savings.DepositAccountType;
 import org.apache.fineract.portfolio.savings.domain.SavingsAccount;
 import org.apache.fineract.portfolio.savings.domain.SavingsAccountRepositoryWrapper;
@@ -469,7 +469,7 @@ public class ShareAccountDataSerializer {
         }
         LocalDate approvedDate = this.fromApiJsonHelper.extractLocalDateNamed(ShareAccountApiConstants.approveddate_paramname, element);
         final LocalDate submittalDate = account.getSubmittedDate();
-        if (approvedDate != null && approvedDate.isBefore(submittalDate)) {
+        if (approvedDate != null && DateUtils.isBefore(approvedDate, submittalDate)) {
             final DateTimeFormatter formatter = DateTimeFormatter.ofPattern(jsonCommand.dateFormat())
                     .withLocale(jsonCommand.extractLocale());
             final String submittalDateAsString = formatter.format(submittalDate);
@@ -610,7 +610,7 @@ public class ShareAccountDataSerializer {
         LocalDate activatedDate = this.fromApiJsonHelper.extractLocalDateNamed(ShareAccountApiConstants.activatedate_paramname, element);
         baseDataValidator.reset().parameter(ShareAccountApiConstants.activatedate_paramname).value(activatedDate).notNull();
         final LocalDate approvedDate = account.getApprovedDate();
-        if (activatedDate != null && activatedDate.isBefore(approvedDate)) {
+        if (activatedDate != null && DateUtils.isBefore(activatedDate, approvedDate)) {
             final DateTimeFormatter formatter = DateTimeFormatter.ofPattern(jsonCommand.dateFormat())
                     .withLocale(jsonCommand.extractLocale());
             final String submittalDateAsString = formatter.format(approvedDate);
@@ -710,7 +710,7 @@ public class ShareAccountDataSerializer {
         for (ShareAccountTransaction transaction : transactions) {
             if (!transaction.isChargeTransaction()) {
                 LocalDate transactionDate = transaction.getPurchasedDate();
-                if (requestedDate.isBefore(transactionDate)) {
+                if (DateUtils.isBefore(requestedDate, transactionDate)) {
                     isTransactionBeforeExistingTransactions = true;
                     break;
                 }
@@ -867,7 +867,7 @@ public class ShareAccountDataSerializer {
         for (ShareAccountTransaction transaction : transactions) {
             if (!transaction.isChargeTransaction() && transaction.isActive()) {
                 LocalDate transactionDate = transaction.getPurchasedDate();
-                if (requestedDate.isBefore(transactionDate)) {
+                if (DateUtils.isBefore(requestedDate, transactionDate)) {
                     isTransactionBeforeExistingTransactions = true;
                     break;
                 }
@@ -908,8 +908,8 @@ public class ShareAccountDataSerializer {
         if (lockinPeriod == null && periodType == null) {
             return;
         }
-        Long totalSharesCanBeRedeemed = Long.valueOf(0);
-        Long totalSharesPurchasedBeforeRedeem = Long.valueOf(0);
+        Long totalSharesCanBeRedeemed = 0L;
+        Long totalSharesPurchasedBeforeRedeem = 0L;
         boolean isPurchaseTransactionExist = false;
 
         Set<ShareAccountTransaction> transactions = account.getShareAccountTransactions();
@@ -917,7 +917,7 @@ public class ShareAccountDataSerializer {
             if (transaction.isActive() && !transaction.isChargeTransaction()) {
                 LocalDate purchaseDate = transaction.getPurchasedDate();
                 LocalDate lockinDate = deriveLockinPeriodDuration(lockinPeriod, periodType, purchaseDate);
-                if (!lockinDate.isAfter(redeemDate)) {
+                if (!DateUtils.isAfter(lockinDate, redeemDate)) {
                     if (transaction.isPurchasTransaction()) {
                         totalSharesCanBeRedeemed += transaction.getTotalShares();
                     } else if (transaction.isRedeemTransaction()) {
@@ -925,7 +925,7 @@ public class ShareAccountDataSerializer {
                     }
                 }
 
-                if (!purchaseDate.isAfter(redeemDate)) {
+                if (!DateUtils.isAfter(purchaseDate, redeemDate)) {
                     isPurchaseTransactionExist = true;
                     if (transaction.isPurchasTransaction()) {
                         totalSharesPurchasedBeforeRedeem += transaction.getTotalShares();
@@ -1022,7 +1022,7 @@ public class ShareAccountDataSerializer {
         for (ShareAccountTransaction transaction : transactions) {
             if (!transaction.isChargeTransaction()) {
                 LocalDate transactionDate = transaction.getPurchasedDate();
-                if (closedDate.isBefore(transactionDate)) {
+                if (DateUtils.isBefore(closedDate, transactionDate)) {
                     isTransactionBeforeExistingTransactions = true;
                     break;
                 }

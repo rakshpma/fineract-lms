@@ -18,8 +18,8 @@
  */
 package org.apache.fineract.portfolio.common.domain;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.time.LocalDate;
+import java.util.Arrays;
 
 /**
  *
@@ -55,15 +55,9 @@ public enum DaysInYearType {
         return this.code;
     }
 
+    // TODO: do we really need this?!?
     public static Object[] integerValues() {
-        final List<Integer> values = new ArrayList<>();
-        for (final DaysInYearType enumType : values()) {
-            if (enumType.getValue() > 0) {
-                values.add(enumType.getValue());
-            }
-        }
-
-        return values.toArray();
+        return Arrays.stream(values()).filter(value -> !INVALID.equals(value)).map(value -> value.value).toList().toArray();
     }
 
     public static DaysInYearType fromInt(final Integer type) {
@@ -89,5 +83,12 @@ public enum DaysInYearType {
 
     public boolean isActual() {
         return DaysInYearType.ACTUAL.getValue().equals(this.value);
+    }
+
+    public Integer getNumberOfDays(final LocalDate referenceDate) {
+        if (referenceDate == null) {
+            return null;
+        }
+        return this == ACTUAL ? referenceDate.lengthOfYear() : this.getValue();
     }
 }

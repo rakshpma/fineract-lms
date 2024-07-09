@@ -37,7 +37,7 @@ import org.apache.fineract.infrastructure.core.service.DateUtils;
 @Table(name = "m_external_event")
 @Getter
 @NoArgsConstructor
-public class ExternalEvent extends AbstractPersistableCustom {
+public class ExternalEvent extends AbstractPersistableCustom<Long> {
 
     @Column(name = "type", nullable = false)
     private String type;
@@ -80,7 +80,7 @@ public class ExternalEvent extends AbstractPersistableCustom {
         this.data = data;
         this.idempotencyKey = idempotencyKey;
         this.aggregateRootId = aggregateRootId;
-        this.createdAt = DateUtils.getOffsetDateTimeOfTenantWithMostPrecision();
+        this.createdAt = DateUtils.getAuditOffsetDateTime();
         this.status = ExternalEventStatus.TO_BE_SENT;
         this.businessDate = DateUtils.getBusinessLocalDate();
     }

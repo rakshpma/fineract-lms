@@ -45,9 +45,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
-import org.springframework.stereotype.Service;
 
-@Service
 @RequiredArgsConstructor
 public class OfficeReadPlatformServiceImpl implements OfficeReadPlatformService {
 
@@ -161,12 +159,12 @@ public class OfficeReadPlatformServiceImpl implements OfficeReadPlatformService 
         sqlBuilder.append(rm.officeSchema());
         sqlBuilder.append(" where o.hierarchy like ? ");
         if (searchParameters != null) {
-            if (searchParameters.isOrderByRequested()) {
-                sqlBuilder.append("order by ").append(searchParameters.getOrderBy());
+            if (searchParameters.hasOrderBy()) {
                 this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getOrderBy());
-                if (searchParameters.isSortOrderProvided()) {
-                    sqlBuilder.append(' ').append(searchParameters.getSortOrder());
+                sqlBuilder.append("order by ").append(searchParameters.getOrderBy());
+                if (searchParameters.hasSortOrder()) {
                     this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getSortOrder());
+                    sqlBuilder.append(' ').append(searchParameters.getSortOrder());
                 }
             } else {
                 sqlBuilder.append("order by o.hierarchy");

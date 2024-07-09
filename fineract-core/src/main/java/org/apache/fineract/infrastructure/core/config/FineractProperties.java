@@ -38,6 +38,8 @@ public class FineractProperties {
 
     private String idempotencyKeyHeaderName;
 
+    private Boolean insecureHttpClient;
+
     private FineractTenantProperties tenant;
 
     private FineractModeProperties mode;
@@ -73,6 +75,8 @@ public class FineractProperties {
     private FineractSamplingProperties sampling;
 
     private FineractModulesProperties module;
+
+    private FineractSqlValidationProperties sqlValidation;
 
     @Getter
     @Setter
@@ -160,6 +164,7 @@ public class FineractProperties {
         private Integer threadPoolMaxPoolSize;
         private Integer threadPoolQueueCapacity;
         private Integer retryLimit;
+        private Integer pollInterval;
 
     }
 
@@ -282,6 +287,7 @@ public class FineractProperties {
 
         private boolean enabled;
         private FineractExternalEventsProducerProperties producer;
+        private int partitionSize;
     }
 
     @Getter
@@ -446,6 +452,7 @@ public class FineractProperties {
     public static class FineractLoanProperties {
 
         private FineractTransactionProcessorProperties transactionProcessor;
+        private String statusChangeHistoryStatuses;
     }
 
     @Getter
@@ -527,5 +534,39 @@ public class FineractProperties {
     @Setter
     public static class FineractInvestorModuleProperties extends AbstractFineractModuleProperties {
 
+    }
+
+    @Getter
+    @Setter
+    public static class FineractSqlValidationProperties {
+
+        private List<FineractSqlValidationPatternProperties> patterns;
+        private List<FineractSqlValidationProfileProperties> profiles;
+    }
+
+    @Getter
+    @Setter
+    public static class FineractSqlValidationProfileProperties {
+
+        private String name;
+        private String description;
+        private List<FineractSqlValidationPatternReferenceProperties> patternRefs;
+        private Boolean enabled = true;
+    }
+
+    @Getter
+    @Setter
+    public static class FineractSqlValidationPatternReferenceProperties {
+
+        private String name;
+        private Integer order;
+    }
+
+    @Getter
+    @Setter
+    public static class FineractSqlValidationPatternProperties {
+
+        private String name;
+        private String pattern;
     }
 }

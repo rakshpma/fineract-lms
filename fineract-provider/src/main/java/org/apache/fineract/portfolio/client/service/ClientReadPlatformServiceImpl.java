@@ -155,8 +155,8 @@ public class ClientReadPlatformServiceImpl implements ClientReadPlatformService 
 
         final List<EnumOptionData> clientLegalFormOptions = ClientEnumerations.legalForm(LegalForm.values());
 
-        final List<DatatableData> datatableTemplates = this.entityDatatableChecksReadService
-                .retrieveTemplates(StatusEnum.CREATE.getCode().longValue(), EntityTables.CLIENT.getName(), null);
+        final List<DatatableData> datatableTemplates = this.entityDatatableChecksReadService.retrieveTemplates(StatusEnum.CREATE.getValue(),
+                EntityTables.CLIENT.getName(), null);
 
         return ClientData.template(defaultOfficeId, LocalDate.now(DateUtils.getDateTimeZoneOfTenant()), offices, staffOptions, null,
                 genderOptions, savingsProductDatas, clientTypeOptions, clientClassificationOptions, clientNonPersonConstitutionOptions,
@@ -192,7 +192,7 @@ public class ClientReadPlatformServiceImpl implements ClientReadPlatformService 
         sqlBuilder.append(" where (o.hierarchy like ? or transferToOffice.hierarchy like ?) ");
 
         if (searchParameters != null) {
-            if (searchParameters.isSelfUser()) {
+            if (searchParameters.getIsSelfUser()) {
                 sqlBuilder.append(
                         " and c.id in (select umap.client_id from m_selfservice_user_client_mapping as umap where umap.appuser_id = ? ) ");
                 paramList.add(appUserID);
@@ -204,18 +204,18 @@ public class ClientReadPlatformServiceImpl implements ClientReadPlatformService 
                 sqlBuilder.append(" and (").append(extraCriteria).append(")");
             }
 
-            if (searchParameters.isOrderByRequested()) {
+            if (searchParameters.hasOrderBy()) {
                 sqlBuilder.append(" order by ").append(searchParameters.getOrderBy());
                 this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getOrderBy());
-                if (searchParameters.isSortOrderProvided()) {
+                if (searchParameters.hasSortOrder()) {
                     sqlBuilder.append(' ').append(searchParameters.getSortOrder());
                     this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getSortOrder());
                 }
             }
 
-            if (searchParameters.isLimited()) {
+            if (searchParameters.hasLimit()) {
                 sqlBuilder.append(" ");
-                if (searchParameters.isOffset()) {
+                if (searchParameters.hasOffset()) {
                     sqlBuilder.append(sqlGenerator.limit(searchParameters.getLimit(), searchParameters.getOffset()));
                 } else {
                     sqlBuilder.append(sqlGenerator.limit(searchParameters.getLimit()));
@@ -227,7 +227,6 @@ public class ClientReadPlatformServiceImpl implements ClientReadPlatformService 
 
     private String buildSqlStringFromClientCriteria(String schemaSql, final SearchParameters searchParameters, List<Object> paramList) {
 
-        String sqlSearch = searchParameters.getSqlSearch();
         final Long officeId = searchParameters.getOfficeId();
         final String externalId = searchParameters.getExternalId();
         final String displayName = searchParameters.getName();
@@ -236,13 +235,6 @@ public class ClientReadPlatformServiceImpl implements ClientReadPlatformService 
         final String status = searchParameters.getStatus();
 
         String extraCriteria = "";
-        if (sqlSearch != null) {
-            sqlSearch = sqlSearch.replaceAll(" display_name ", " c.display_name ");
-            sqlSearch = sqlSearch.replaceAll("display_name ", "c.display_name ");
-            extraCriteria = " and (" + sqlSearch + ")";
-            this.columnValidator.validateSqlInjection(schemaSql, sqlSearch);
-        }
-
         if (officeId != null) {
             extraCriteria += " and c.office_id = ? ";
             paramList.add(officeId);
@@ -275,12 +267,12 @@ public class ClientReadPlatformServiceImpl implements ClientReadPlatformService 
             extraCriteria += " and c.lastname like ? ";
         }
 
-        if (searchParameters.isScopedByOfficeHierarchy()) {
+        if (searchParameters.hasHierarchy()) {
             paramList.add(searchParameters.getHierarchy() + "%");
             extraCriteria += " and o.hierarchy like ? ";
         }
 
-        if (searchParameters.isOrphansOnly()) {
+        if (searchParameters.getOrphansOnly()) {
             extraCriteria += " and c.id NOT IN (select client_id from m_group_client) ";
         }
 

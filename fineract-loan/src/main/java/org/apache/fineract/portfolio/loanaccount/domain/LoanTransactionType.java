@@ -60,7 +60,12 @@ public enum LoanTransactionType {
     CHARGEBACK(25, "loanTransactionType.chargeback"), //
     CHARGE_ADJUSTMENT(26, "loanTransactionType.chargeAdjustment"), //
     CHARGE_OFF(27, "loanTransactionType.chargeOff"), //
-    DOWN_PAYMENT(28, "loanTransactionType.downPayment");
+    DOWN_PAYMENT(28, "loanTransactionType.downPayment"), //
+    REAGE(29, "loanTransactionType.reAge"), //
+    REAMORTIZE(30, "loanTransactionType.reAmortize"), //
+    INTEREST_PAYMENT_WAIVER(31, "loanTransactionType.interestPaymentWaiver"), //
+    ACCRUAL_ACTIVITY(32, "loanTransactionType.accrualActivity"), //
+    ;
 
     private final Integer value;
     private final String code;
@@ -104,6 +109,10 @@ public enum LoanTransactionType {
             case 26 -> LoanTransactionType.CHARGE_ADJUSTMENT;
             case 27 -> LoanTransactionType.CHARGE_OFF;
             case 28 -> LoanTransactionType.DOWN_PAYMENT;
+            case 29 -> LoanTransactionType.REAGE;
+            case 30 -> LoanTransactionType.REAMORTIZE;
+            case 31 -> LoanTransactionType.INTEREST_PAYMENT_WAIVER;
+            case 32 -> LoanTransactionType.ACCRUAL_ACTIVITY;
             default -> LoanTransactionType.INVALID;
         };
     }
@@ -128,6 +137,10 @@ public enum LoanTransactionType {
         return this.equals(LoanTransactionType.REPAYMENT);
     }
 
+    public boolean isInterestPaymentWaiver() {
+        return this.equals(LoanTransactionType.INTEREST_PAYMENT_WAIVER);
+    }
+
     public boolean isMerchantIssuedRefund() {
         return this.equals(LoanTransactionType.MERCHANT_ISSUED_REFUND);
     }
@@ -145,7 +158,8 @@ public enum LoanTransactionType {
     }
 
     public boolean isRepaymentType() {
-        return (isRepayment() || isMerchantIssuedRefund() || isPayoutRefund() || isGoodwillCredit() || isChargeRefund() || isDownPayment());
+        return (isRepayment() || isMerchantIssuedRefund() || isPayoutRefund() || isGoodwillCredit() || isChargeRefund() || isDownPayment()
+                || isInterestPaymentWaiver());
     }
 
     public boolean isRecoveryRepayment() {
@@ -192,7 +206,19 @@ public enum LoanTransactionType {
         return this.equals(LoanTransactionType.CHARGE_OFF);
     }
 
+    public boolean isReAge() {
+        return this.equals(LoanTransactionType.REAGE);
+    }
+
+    public boolean isReAmortize() {
+        return this.equals(LoanTransactionType.REAMORTIZE);
+    }
+
     public boolean isDownPayment() {
         return this.equals(LoanTransactionType.DOWN_PAYMENT);
+    }
+
+    public boolean isAccrualActivity() {
+        return this.equals(LoanTransactionType.ACCRUAL_ACTIVITY);
     }
 }

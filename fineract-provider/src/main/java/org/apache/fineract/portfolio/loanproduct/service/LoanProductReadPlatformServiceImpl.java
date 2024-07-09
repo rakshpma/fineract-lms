@@ -43,8 +43,11 @@ import org.apache.fineract.portfolio.charge.service.ChargeReadPlatformService;
 import org.apache.fineract.portfolio.common.service.CommonEnumerations;
 import org.apache.fineract.portfolio.delinquency.data.DelinquencyBucketData;
 import org.apache.fineract.portfolio.delinquency.service.DelinquencyReadPlatformService;
+import org.apache.fineract.portfolio.loanaccount.loanschedule.domain.LoanScheduleProcessingType;
+import org.apache.fineract.portfolio.loanaccount.loanschedule.domain.LoanScheduleType;
 import org.apache.fineract.portfolio.loanproduct.data.AdvancedPaymentData;
 import org.apache.fineract.portfolio.loanproduct.data.AdvancedPaymentData.PaymentAllocationOrder;
+import org.apache.fineract.portfolio.loanproduct.data.CreditAllocationData;
 import org.apache.fineract.portfolio.loanproduct.data.LoanProductBorrowerCycleVariationData;
 import org.apache.fineract.portfolio.loanproduct.data.LoanProductData;
 import org.apache.fineract.portfolio.loanproduct.data.LoanProductGuaranteeData;
@@ -60,9 +63,7 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
-import org.springframework.stereotype.Service;
 
-@Service
 @RequiredArgsConstructor
 public class LoanProductReadPlatformServiceImpl implements LoanProductReadPlatformService {
 
@@ -84,10 +85,11 @@ public class LoanProductReadPlatformServiceImpl implements LoanProductReadPlatfo
             final Collection<LoanProductBorrowerCycleVariationData> borrowerCycleVariationDatas = retrieveLoanProductBorrowerCycleVariations(
                     loanProductId);
             final Collection<AdvancedPaymentData> advancedPaymentData = retrieveAdvancedPaymentData(loanProductId);
+            final Collection<CreditAllocationData> creditAllocationData = retrieveCreditAllocationData(loanProductId);
             final Collection<DelinquencyBucketData> delinquencyBucketOptions = this.delinquencyReadPlatformService
                     .retrieveAllDelinquencyBuckets();
             final LoanProductMapper rm = new LoanProductMapper(charges, borrowerCycleVariationDatas, rates, delinquencyBucketOptions,
-                    advancedPaymentData);
+                    advancedPaymentData, creditAllocationData);
             final String sql = "select " + rm.loanProductSchema() + " where lp.id = ?";
 
             return this.jdbcTemplate.queryForObject(sql, rm, loanProductId); // NOSONAR
@@ -117,11 +119,18 @@ public class LoanProductReadPlatformServiceImpl implements LoanProductReadPlatfo
     }
 
     @Override
+    public List<CreditAllocationData> retrieveCreditAllocationData(final Long loanProductId) {
+        final CreditAllocationDataMapper cadm = new CreditAllocationDataMapper();
+        final String sql = "select " + cadm.schema() + " where loan_product_id = ?";
+        return this.jdbcTemplate.query(sql, cadm, loanProductId); // NOSONAR
+    }
+
+    @Override
     public Collection<LoanProductData> retrieveAllLoanProducts() {
 
         this.context.authenticatedUser();
 
-        final LoanProductMapper rm = new LoanProductMapper(null, null, null, null, null);
+        final LoanProductMapper rm = new LoanProductMapper(null, null, null, null, null, null);
 
         String sql = "select " + rm.loanProductSchema();
 
@@ -200,18 +209,22 @@ public class LoanProductReadPlatformServiceImpl implements LoanProductReadPlatfo
 
         private final Collection<AdvancedPaymentData> advancedPaymentData;
 
+        private final Collection<CreditAllocationData> creditAllocationData;
+
         private final Collection<RateData> rates;
 
         private final Collection<DelinquencyBucketData> delinquencyBucketOptions;
 
         LoanProductMapper(final Collection<ChargeData> charges,
                 final Collection<LoanProductBorrowerCycleVariationData> borrowerCycleVariationDatas, final Collection<RateData> rates,
-                final Collection<DelinquencyBucketData> delinquencyBucketOptions, Collection<AdvancedPaymentData> advancedPaymentData) {
+                final Collection<DelinquencyBucketData> delinquencyBucketOptions, Collection<AdvancedPaymentData> advancedPaymentData,
+                Collection<CreditAllocationData> creditAllocationData) {
             this.charges = charges;
             this.borrowerCycleVariationDatas = borrowerCycleVariationDatas;
             this.rates = rates;
             this.delinquencyBucketOptions = delinquencyBucketOptions;
             this.advancedPaymentData = advancedPaymentData;
+            this.creditAllocationData = creditAllocationData;
         }
 
         public String loanProductSchema() {
@@ -221,6 +234,7 @@ public class LoanProductReadPlatformServiceImpl implements LoanProductReadPlatfo
                     + "lp.nominal_interest_rate_per_period as interestRatePerPeriod, lp.min_nominal_interest_rate_per_period as minInterestRatePerPeriod, lp.max_nominal_interest_rate_per_period as maxInterestRatePerPeriod, lp.interest_period_frequency_enum as interestRatePerPeriodFreq, "
                     + "lp.annual_nominal_interest_rate as annualInterestRate, lp.interest_method_enum as interestMethod, lp.interest_calculated_in_period_enum as interestCalculationInPeriodMethod,lp.allow_partial_period_interest_calcualtion as allowPartialPeriodInterestCalcualtion, "
                     + "lp.repay_every as repaidEvery, lp.repayment_period_frequency_enum as repaymentPeriodFrequency, lp.number_of_repayments as numberOfRepayments, lp.min_number_of_repayments as minNumberOfRepayments, lp.max_number_of_repayments as maxNumberOfRepayments, "
+                    + "lp.fixed_length as fixedLength, " + "lp.enable_accrual_activity_posting as enableAccrualActivityPosting, "
                     + "lp.grace_on_principal_periods as graceOnPrincipalPayment, lp.recurring_moratorium_principal_periods as recurringMoratoriumOnPrincipalPeriods, lp.grace_on_interest_periods as graceOnInterestPayment, lp.grace_interest_free_periods as graceOnInterestCharged,lp.grace_on_arrears_ageing as graceOnArrearsAgeing,lp.overdue_days_for_npa as overdueDaysForNPA, "
                     + "lp.min_days_between_disbursal_and_first_repayment As minimumDaysBetweenDisbursalAndFirstRepayment, "
                     + "lp.amortization_method_enum as amortizationMethod, lp.arrearstolerance_amount as tolerance, "
@@ -230,7 +244,7 @@ public class LoanProductReadPlatformServiceImpl implements LoanProductReadPlatfo
                     + "lp.days_in_month_enum as daysInMonth, lp.days_in_year_enum as daysInYear, lp.interest_recalculation_enabled as isInterestRecalculationEnabled, "
                     + "lp.can_define_fixed_emi_amount as canDefineInstallmentAmount, lp.instalment_amount_in_multiples_of as installmentAmountInMultiplesOf, "
                     + "lp.due_days_for_repayment_event as dueDaysForRepaymentEvent, lp.overdue_days_for_repayment_event as overDueDaysForRepaymentEvent, lp.enable_down_payment as enableDownPayment, lp.disbursed_amount_percentage_for_down_payment as disbursedAmountPercentageForDownPayment, lp.enable_auto_repayment_for_down_payment as enableAutoRepaymentForDownPayment, lp.repayment_start_date_type_enum as repaymentStartDateType, "
-                    + "lp.disable_schedule_extension_for_down_payment as disableScheduleExtensionForDownPayment, "
+                    + "lp.enable_installment_level_delinquency as enableInstallmentLevelDelinquency, "
                     + "lpr.pre_close_interest_calculation_strategy as preCloseInterestCalculationStrategy, "
                     + "lpr.id as lprId, lpr.product_id as productId, lpr.compound_type_enum as compoundType, lpr.reschedule_strategy_enum as rescheduleStrategy, "
                     + "lpr.rest_frequency_type_enum as restFrequencyEnum, lpr.rest_frequency_interval as restFrequencyInterval, "
@@ -262,7 +276,7 @@ public class LoanProductReadPlatformServiceImpl implements LoanProductReadPlatfo
                     + "lfr.is_floating_interest_rate_calculation_allowed as isFloatingInterestRateCalculationAllowed, "
                     + "lp.allow_variabe_installments as isVariableIntallmentsAllowed, " + "lvi.minimum_gap as minimumGap, "
                     + "lvi.maximum_gap as maximumGap, dbuc.id as delinquencyBucketId, dbuc.name as delinquencyBucketName, "
-                    + "lp.can_use_for_topup as canUseForTopup, lp.is_equal_amortization as isEqualAmortization "
+                    + "lp.can_use_for_topup as canUseForTopup, lp.is_equal_amortization as isEqualAmortization, lp.loan_schedule_type as loanScheduleType, lp.loan_schedule_processing_type as loanScheduleProcessingType  "
                     + " from m_product_loan lp " + " left join m_fund f on f.id = lp.fund_id "
                     + " left join m_product_loan_recalculation_details lpr on lpr.product_id=lp.id "
                     + " left join m_product_loan_guarantee_details lpg on lpg.loan_product_id=lp.id "
@@ -306,6 +320,7 @@ public class LoanProductReadPlatformServiceImpl implements LoanProductReadPlatfo
             final Integer minNumberOfRepayments = JdbcSupport.getInteger(rs, "minNumberOfRepayments");
             final Integer maxNumberOfRepayments = JdbcSupport.getInteger(rs, "maxNumberOfRepayments");
             final Integer repaymentEvery = JdbcSupport.getInteger(rs, "repaidEvery");
+            final Integer fixedLength = JdbcSupport.getInteger(rs, "fixedLength");
 
             final Integer graceOnPrincipalPayment = JdbcSupport.getIntegerDefaultToNullIfZero(rs, "graceOnPrincipalPayment");
             final Integer recurringMoratoriumOnPrincipalPeriods = JdbcSupport.getIntegerDefaultToNullIfZero(rs,
@@ -367,10 +382,10 @@ public class LoanProductReadPlatformServiceImpl implements LoanProductReadPlatfo
             final boolean enableAutoRepaymentForDownPayment = rs.getBoolean("enableAutoRepaymentForDownPayment");
             final Integer repaymentStartDateTypeId = JdbcSupport.getInteger(rs, "repaymentStartDateType");
             final EnumOptionData repaymentStartDateType = LoanEnumerations.repaymentStartDateType(repaymentStartDateTypeId);
-            final boolean disableScheduleExtensionForDownPayment = rs.getBoolean("disableScheduleExtensionForDownPayment");
+            final boolean enableInstallmentLevelDelinquency = rs.getBoolean("enableInstallmentLevelDelinquency");
 
             String status = "";
-            if (closeDate != null && closeDate.isBefore(DateUtils.getBusinessLocalDate())) {
+            if (closeDate != null && DateUtils.isBeforeBusinessDate(closeDate)) {
                 status = "loanProduct.inActive";
             } else {
                 status = "loanProduct.active";
@@ -501,10 +516,16 @@ public class LoanProductReadPlatformServiceImpl implements LoanProductReadPlatfo
             final boolean isRatesEnabled = false;
 
             // Delinquency Buckets
-            final Long delinquencyBucketId = rs.getLong("delinquencyBucketId");
+            final Long delinquencyBucketId = JdbcSupport.getLong(rs, "delinquencyBucketId");
             final String delinquencyBucketName = rs.getString("delinquencyBucketName");
             final DelinquencyBucketData delinquencyBucket = new DelinquencyBucketData(delinquencyBucketId, delinquencyBucketName,
                     new ArrayList<>());
+
+            final String loanScheduleTypeStr = rs.getString("loanScheduleType");
+            final LoanScheduleType loanScheduleType = LoanScheduleType.valueOf(loanScheduleTypeStr);
+            final String loanScheduleProcessingTypeStr = rs.getString("loanScheduleProcessingType");
+            final LoanScheduleProcessingType loanScheduleProcessingType = LoanScheduleProcessingType.valueOf(loanScheduleProcessingTypeStr);
+            final boolean enableAccrualActivityPosting = rs.getBoolean("enableAccrualActivityPosting");
 
             return new LoanProductData(id, name, shortName, description, currency, principal, minPrincipal, maxPrincipal, tolerance,
                     numberOfRepayments, minNumberOfRepayments, maxNumberOfRepayments, repaymentEvery, interestRatePerPeriod,
@@ -525,7 +546,9 @@ public class LoanProductReadPlatformServiceImpl implements LoanProductReadPlatfo
                     maximumGap, syncExpectedWithDisbursementDate, canUseForTopup, isEqualAmortization, rateOptions, this.rates,
                     isRatesEnabled, fixedPrincipalPercentagePerInstallment, delinquencyBucketOptions, delinquencyBucket,
                     dueDaysForRepaymentEvent, overDueDaysForRepaymentEvent, enableDownPayment, disbursedAmountPercentageForDownPayment,
-                    enableAutoRepaymentForDownPayment, advancedPaymentData, repaymentStartDateType, disableScheduleExtensionForDownPayment);
+                    enableAutoRepaymentForDownPayment, advancedPaymentData, creditAllocationData, repaymentStartDateType,
+                    enableInstallmentLevelDelinquency, loanScheduleType.asEnumOptionData(), loanScheduleProcessingType.asEnumOptionData(),
+                    fixedLength, enableAccrualActivityPosting);
         }
     }
 
@@ -583,11 +606,34 @@ public class LoanProductReadPlatformServiceImpl implements LoanProductReadPlatfo
             return new AdvancedPaymentData(transactionType, futureInstallmentAllocationRule, convert(allocationTypes));
         }
 
-        private List<PaymentAllocationOrder> convert(String futureInstallmentAllocationRule) {
-            String[] allocationRule = futureInstallmentAllocationRule.split(",");
+        private List<PaymentAllocationOrder> convert(String allocationOrders) {
+            String[] allocationRule = allocationOrders.split(",");
             AtomicInteger order = new AtomicInteger(1);
             return Arrays.stream(allocationRule) //
                     .map(s -> new PaymentAllocationOrder(s, order.getAndIncrement())) //
+                    .toList();
+        }
+
+    }
+
+    private static final class CreditAllocationDataMapper implements RowMapper<CreditAllocationData> {
+
+        public String schema() {
+            return "transaction_type, allocation_types from m_loan_product_credit_allocation_rule";
+        }
+
+        @Override
+        public CreditAllocationData mapRow(ResultSet rs, int rowNum) throws SQLException {
+            final String transactionType = rs.getString("transaction_type");
+            final String allocationTypes = rs.getString("allocation_types");
+            return new CreditAllocationData(transactionType, convert(allocationTypes));
+        }
+
+        private List<CreditAllocationData.CreditAllocationOrder> convert(String allocationOrders) {
+            String[] allocationRule = allocationOrders.split(",");
+            AtomicInteger order = new AtomicInteger(1);
+            return Arrays.stream(allocationRule) //
+                    .map(s -> new CreditAllocationData.CreditAllocationOrder(s, order.getAndIncrement())) //
                     .toList();
         }
 
@@ -624,7 +670,7 @@ public class LoanProductReadPlatformServiceImpl implements LoanProductReadPlatfo
     public Collection<LoanProductData> retrieveAllLoanProductsForCurrency(String currencyCode) {
         this.context.authenticatedUser();
 
-        final LoanProductMapper rm = new LoanProductMapper(null, null, null, null, null);
+        final LoanProductMapper rm = new LoanProductMapper(null, null, null, null, null, null);
 
         String sql = "select " + rm.loanProductSchema() + " where lp.currency_code= ? ";
 

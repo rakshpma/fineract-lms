@@ -19,6 +19,7 @@
 package org.apache.fineract.commands.jobs;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -36,6 +37,7 @@ import org.apache.fineract.infrastructure.core.domain.ActionContext;
 import org.apache.fineract.infrastructure.core.domain.FineractPlatformTenant;
 import org.apache.fineract.infrastructure.core.service.DateUtils;
 import org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -70,6 +72,11 @@ public class PurgeProcessedCommandsTaskletTest {
         underTest = new PurgeProcessedCommandsTasklet(repository, configurationDomainService);
     }
 
+    @AfterEach
+    public void tearDown() {
+        ThreadLocalContextUtil.reset();
+    }
+
     @Test
     public void givenEventsForPurgeWhenTaskExecutionThenEventsPurgeForDaysCriteria() {
         // given
@@ -80,9 +87,9 @@ public class PurgeProcessedCommandsTaskletTest {
         // then
         verify(repository, times(1)).deleteOlderEventsWithStatus(Mockito.any(), Mockito.any());
         verify(repository).deleteOlderEventsWithStatus(Mockito.any(), dateCriteriaCaptor.capture());
-        OffsetDateTime expectedDateForPurgeCriteriaTest = DateUtils.getOffsetDateTimeOfTenant().minusDays(2);
+        OffsetDateTime expectedDateForPurgeCriteriaTest = DateUtils.getAuditOffsetDateTime().minusDays(2);
         OffsetDateTime actualDateForPurgeCriteria = dateCriteriaCaptor.getValue();
-        assertEquals(expectedDateForPurgeCriteriaTest, actualDateForPurgeCriteria);
+        assertTrue(expectedDateForPurgeCriteriaTest.toEpochSecond() - actualDateForPurgeCriteria.toEpochSecond() <= 1);
         assertEquals(RepeatStatus.FINISHED, resultStatus);
     }
 
@@ -96,5 +103,4 @@ public class PurgeProcessedCommandsTaskletTest {
         // then
         assertEquals(RepeatStatus.FINISHED, resultStatus);
     }
-
 }

@@ -18,18 +18,13 @@
  */
 package org.apache.fineract.portfolio.loanaccount.service;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
-import org.apache.commons.lang3.StringUtils;
+import lombok.RequiredArgsConstructor;
 import org.apache.fineract.infrastructure.configuration.domain.ConfigurationDomainService;
 import org.apache.fineract.infrastructure.core.exception.PlatformServiceUnavailableException;
-import org.apache.fineract.infrastructure.core.serialization.FromJsonHelper;
 import org.apache.fineract.organisation.holiday.domain.Holiday;
 import org.apache.fineract.organisation.holiday.domain.HolidayRepository;
 import org.apache.fineract.organisation.holiday.domain.HolidayStatusType;
@@ -51,18 +46,14 @@ import org.apache.fineract.portfolio.floatingrates.data.FloatingRatePeriodData;
 import org.apache.fineract.portfolio.floatingrates.exception.FloatingRateNotFoundException;
 import org.apache.fineract.portfolio.floatingrates.service.FloatingRatesReadPlatformService;
 import org.apache.fineract.portfolio.group.domain.Group;
-import org.apache.fineract.portfolio.loanaccount.api.LoanApiConstants;
 import org.apache.fineract.portfolio.loanaccount.data.HolidayDetailDTO;
 import org.apache.fineract.portfolio.loanaccount.data.ScheduleGeneratorDTO;
 import org.apache.fineract.portfolio.loanaccount.domain.Loan;
-import org.apache.fineract.portfolio.loanaccount.domain.LoanDisbursementDetails;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanTransactionType;
 import org.apache.fineract.portfolio.loanaccount.loanschedule.domain.LoanScheduleGeneratorFactory;
 import org.apache.fineract.portfolio.loanproduct.domain.LoanProductRelatedDetail;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
-@Component
+@RequiredArgsConstructor
 public class LoanUtilService {
 
     private final ApplicationCurrencyRepositoryWrapper applicationCurrencyRepository;
@@ -72,25 +63,7 @@ public class LoanUtilService {
     private final WorkingDaysRepositoryWrapper workingDaysRepository;
     private final LoanScheduleGeneratorFactory loanScheduleFactory;
     private final FloatingRatesReadPlatformService floatingRatesReadPlatformService;
-    private final FromJsonHelper fromApiJsonHelper;
     private final CalendarReadPlatformService calendarReadPlatformService;
-
-    @Autowired
-    public LoanUtilService(final ApplicationCurrencyRepositoryWrapper applicationCurrencyRepository,
-            final CalendarInstanceRepository calendarInstanceRepository, final ConfigurationDomainService configurationDomainService,
-            final HolidayRepository holidayRepository, final WorkingDaysRepositoryWrapper workingDaysRepository,
-            final LoanScheduleGeneratorFactory loanScheduleFactory, final FloatingRatesReadPlatformService floatingRatesReadPlatformService,
-            final FromJsonHelper fromApiJsonHelper, final CalendarReadPlatformService calendarReadPlatformService) {
-        this.applicationCurrencyRepository = applicationCurrencyRepository;
-        this.calendarInstanceRepository = calendarInstanceRepository;
-        this.configurationDomainService = configurationDomainService;
-        this.holidayRepository = holidayRepository;
-        this.workingDaysRepository = workingDaysRepository;
-        this.loanScheduleFactory = loanScheduleFactory;
-        this.floatingRatesReadPlatformService = floatingRatesReadPlatformService;
-        this.fromApiJsonHelper = fromApiJsonHelper;
-        this.calendarReadPlatformService = calendarReadPlatformService;
-    }
 
     public ScheduleGeneratorDTO buildScheduleGeneratorDTO(final Loan loan, final LocalDate recalculateFrom) {
         final HolidayDetailDTO holidayDetailDTO = null;
@@ -135,7 +108,7 @@ public class LoanUtilService {
         if (isSkipRepaymentOnFirstMonthEnabled) {
             isSkipRepaymentOnFirstMonth = isLoanRepaymentsSyncWithMeeting(loan.group(), calendar);
             if (isSkipRepaymentOnFirstMonth) {
-                numberOfDays = configurationDomainService.retreivePeroidInNumberOfDaysForSkipMeetingDate().intValue();
+                numberOfDays = configurationDomainService.retreivePeriodInNumberOfDaysForSkipMeetingDate().intValue();
             }
         }
         final Boolean isChangeEmiIfRepaymentDateSameAsDisbursementDateEnabled = this.configurationDomainService
@@ -200,6 +173,17 @@ public class LoanUtilService {
         HolidayDetailDTO holidayDetailDTO = new HolidayDetailDTO(isHolidayEnabled, holidays, workingDays, allowTransactionsOnHoliday,
                 allowTransactionsOnNonWorkingDay);
         return holidayDetailDTO;
+    }
+
+    public HolidayDetailDTO constructHolidayDTO(final Long officeId, LocalDate localDate) {
+        final boolean isHolidayEnabled = this.configurationDomainService.isRescheduleRepaymentsOnHolidaysEnabled();
+        final List<Holiday> holidays = this.holidayRepository.findByOfficeIdAndGreaterThanDate(officeId, localDate,
+                HolidayStatusType.ACTIVE.getValue());
+        final WorkingDays workingDays = this.workingDaysRepository.findOne();
+        final boolean allowTransactionsOnHoliday = this.configurationDomainService.allowTransactionsOnHolidayEnabled();
+        final boolean allowTransactionsOnNonWorkingDay = this.configurationDomainService.allowTransactionsOnNonWorkingDayEnabled();
+
+        return new HolidayDetailDTO(isHolidayEnabled, holidays, workingDays, allowTransactionsOnHoliday, allowTransactionsOnNonWorkingDay);
     }
 
     private FloatingRateDTO constructFloatingRateDTO(final Loan loan) {
@@ -267,7 +251,7 @@ public class LoanUtilService {
                     boolean isSkipRepaymentOnFirstMonthEnabled = this.configurationDomainService
                             .isSkippingMeetingOnFirstDayOfMonthEnabled();
                     if (isSkipRepaymentOnFirstMonthEnabled) {
-                        numberOfDays = configurationDomainService.retreivePeroidInNumberOfDaysForSkipMeetingDate().intValue();
+                        numberOfDays = configurationDomainService.retreivePeriodInNumberOfDaysForSkipMeetingDate().intValue();
                         isSkipRepaymentOnFirstMonth = isLoanRepaymentsSyncWithMeeting(loan.group(), calendar);
                     }
                     calculatedRepaymentsStartingFromDate = CalendarUtils.getFirstRepaymentMeetingDate(calendar, actualDisbursementDate,
@@ -295,60 +279,15 @@ public class LoanUtilService {
                 Integer numberOfDays = 0;
                 boolean isSkipRepaymentOnFirstMonthEnabled = this.configurationDomainService.isSkippingMeetingOnFirstDayOfMonthEnabled();
                 if (isSkipRepaymentOnFirstMonthEnabled) {
-                    numberOfDays = configurationDomainService.retreivePeroidInNumberOfDaysForSkipMeetingDate().intValue();
+                    numberOfDays = configurationDomainService.retreivePeriodInNumberOfDaysForSkipMeetingDate().intValue();
                     isSkipRepaymentOnFirstMonth = isLoanRepaymentsSyncWithMeeting(loan.group(), historyList.get(0).getCalendar());
                 }
                 calculatedRepaymentsStartingFromDate = CalendarUtils.getNextRepaymentMeetingDate(historyList.get(0).getRecurrence(),
-                        historyList.get(0).getStartDateLocalDate(), actualDisbursementDate, repayEvery, frequency, workingDays,
+                        historyList.get(0).getStartDate(), actualDisbursementDate, repayEvery, frequency, workingDays,
                         isSkipRepaymentOnFirstMonth, numberOfDays);
             }
         }
         return calculatedRepaymentsStartingFromDate;
-    }
-
-    public List<LoanDisbursementDetails> fetchDisbursementData(final JsonObject command) {
-        final Locale locale = this.fromApiJsonHelper.extractLocaleParameter(command);
-        final String dateFormat = this.fromApiJsonHelper.extractDateFormatParameter(command);
-        List<LoanDisbursementDetails> disbursementDatas = new ArrayList<>();
-        if (command.has(LoanApiConstants.disbursementDataParameterName)) {
-            final JsonArray disbursementDataArray = command.getAsJsonArray(LoanApiConstants.disbursementDataParameterName);
-            if (disbursementDataArray != null && disbursementDataArray.size() > 0) {
-                int i = 0;
-                do {
-                    final JsonObject jsonObject = disbursementDataArray.get(i).getAsJsonObject();
-                    LocalDate expectedDisbursementDate = null;
-                    LocalDate actualDisbursementDate = null;
-                    BigDecimal principal = null;
-                    BigDecimal netDisbursalAmount = null;
-
-                    if (jsonObject.has(LoanApiConstants.expectedDisbursementDateParameterName)) {
-                        expectedDisbursementDate = this.fromApiJsonHelper.extractLocalDateNamed(
-                                LoanApiConstants.expectedDisbursementDateParameterName, jsonObject, dateFormat, locale);
-                    }
-                    if (jsonObject.has(LoanApiConstants.disbursementPrincipalParameterName)
-                            && jsonObject.get(LoanApiConstants.disbursementPrincipalParameterName).isJsonPrimitive()
-                            && StringUtils.isNotBlank(jsonObject.get(LoanApiConstants.disbursementPrincipalParameterName).getAsString())) {
-                        principal = jsonObject.getAsJsonPrimitive(LoanApiConstants.disbursementPrincipalParameterName).getAsBigDecimal();
-                    }
-                    if (jsonObject.has(LoanApiConstants.disbursementNetDisbursalAmountParameterName)
-                            && jsonObject.get(LoanApiConstants.disbursementNetDisbursalAmountParameterName).isJsonPrimitive()
-                            && StringUtils.isNotBlank(
-                                    jsonObject.get(LoanApiConstants.disbursementNetDisbursalAmountParameterName).getAsString())) {
-                        netDisbursalAmount = jsonObject.getAsJsonPrimitive(LoanApiConstants.disbursementNetDisbursalAmountParameterName)
-                                .getAsBigDecimal();
-                    }
-                    boolean isReversed = false;
-                    if (jsonObject.has(LoanApiConstants.disbursementReversedParameterName)) {
-                        isReversed = this.fromApiJsonHelper.extractBooleanNamed(LoanApiConstants.disbursementReversedParameterName,
-                                jsonObject);
-                    }
-                    disbursementDatas.add(new LoanDisbursementDetails(expectedDisbursementDate, actualDisbursementDate, principal,
-                            netDisbursalAmount, isReversed));
-                    i++;
-                } while (i < disbursementDataArray.size());
-            }
-        }
-        return disbursementDatas;
     }
 
     public void validateRepaymentTransactionType(LoanTransactionType repaymentTransactionType) {

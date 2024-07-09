@@ -25,8 +25,11 @@ import static org.apache.fineract.infrastructure.core.domain.AuditableFieldsCons
 
 import jakarta.persistence.Column;
 import jakarta.persistence.MappedSuperclass;
+import jakarta.validation.constraints.NotNull;
+import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.Optional;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -44,9 +47,9 @@ import org.springframework.data.jpa.domain.AbstractAuditable;
 @MappedSuperclass
 @Getter
 @Setter
-@NoArgsConstructor
-public abstract class AbstractAuditableWithUTCDateTimeCustom extends AbstractPersistableCustom
-        implements Auditable<Long, Long, OffsetDateTime> {
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public abstract class AbstractAuditableWithUTCDateTimeCustom<T extends Serializable> extends AbstractPersistableCustom<T>
+        implements Auditable<Long, T, OffsetDateTime> {
 
     private static final long serialVersionUID = 141481953116476081L;
 
@@ -67,33 +70,36 @@ public abstract class AbstractAuditableWithUTCDateTimeCustom extends AbstractPer
     private OffsetDateTime lastModifiedDate;
 
     @Override
+    @NotNull
     public Optional<Long> getCreatedBy() {
         return Optional.ofNullable(this.createdBy);
     }
 
     @Override
+    @NotNull
     public Optional<OffsetDateTime> getCreatedDate() {
-        if (this.createdDate == null) {
-            return Optional.empty();
-        } else {
-            return Optional.of(this.createdDate
-                    .withOffsetSameInstant(DateUtils.getDateTimeZoneOfTenant().getRules().getOffset(this.createdDate.toInstant())));
-        }
+        return Optional.ofNullable(createdDate);
+    }
+
+    @NotNull
+    public OffsetDateTime getCreatedDateTime() {
+        return getCreatedDate().orElseGet(DateUtils::getAuditOffsetDateTime);
     }
 
     @Override
+    @NotNull
     public Optional<Long> getLastModifiedBy() {
         return Optional.ofNullable(this.lastModifiedBy);
     }
 
     @Override
+    @NotNull
     public Optional<OffsetDateTime> getLastModifiedDate() {
-        if (this.lastModifiedDate == null) {
-            return Optional.empty();
-        } else {
-            return Optional.of(this.lastModifiedDate
-                    .withOffsetSameInstant(DateUtils.getDateTimeZoneOfTenant().getRules().getOffset(this.lastModifiedDate.toInstant())));
-        }
+        return Optional.ofNullable(lastModifiedDate);
     }
 
+    @NotNull
+    public OffsetDateTime getLastModifiedDateTime() {
+        return getLastModifiedDate().orElseGet(DateUtils::getAuditOffsetDateTime);
+    }
 }

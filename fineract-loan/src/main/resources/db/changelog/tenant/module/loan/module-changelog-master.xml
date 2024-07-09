@@ -30,4 +30,18 @@
   <include relativeToChangelogFile="true" file="parts/1005_add_loan_product_repayment_start_date_configuration.xml"/>
   <include relativeToChangelogFile="true" file="parts/1006_add_downpayment_transaction_enum_permissions.xml"/>
   <include relativeToChangelogFile="true" file="parts/1007_add_loan_product_schedule_extension_for_down_payment_configuration.xml"/>
+  <include relativeToChangelogFile="true" file="parts/1008_add_loan_installment_delinquency_tag.xml"/>
+  <include relativeToChangelogFile="true" file="parts/1009_refactor_loan_Installment_delinquency_tag.xml"/>
+  <include relativeToChangelogFile="true" file="parts/1010_introduce_loan_schedule_type_configuration.xml"/>
+  <include relativeToChangelogFile="true" file="parts/1011_add_delinquency_actions_table.xml"/>
+  <include relativeToChangelogFile="true" file="parts/1012_introduce_loan_schedule_processing_type_configuration.xml"/>
+  <include relativeToChangelogFile="true" file="parts/1013_add_loan_account_delinquency_pause_changed_event.xml"/>
+  <include relativeToChangelogFile="true" file="parts/1014_add_loan_account_custom_snapshot_event.xml"/>
+  <include relativeToChangelogFile="true" file="parts/1015_remove_disable_schedule_extension_column.xml"/>
+  <include relativeToChangelogFile="true" file="parts/1016_add_credit_allocation_rule.xml"/>
+  <include relativeToChangelogFile="true" file="parts/1017_add_fee_and_penalty_adjustments_to_loan.xml"/>
+  <include relativeToChangelogFile="true" file="parts/1018_rename_credited_principal_back_to_credits_amount.xml"/>
+  <include relativeToChangelogFile="true" file="parts/1019_add_fixed_length.xml"/>
+  <include relativeToChangelogFile="true" file="parts/1020_add_re_aged_flag_to_loan_installment.xml"/>
+  <include relativeToChangelogFile="true" file="parts/1021_add_loan_status_change_history.xml"/>
 </databaseChangeLog>

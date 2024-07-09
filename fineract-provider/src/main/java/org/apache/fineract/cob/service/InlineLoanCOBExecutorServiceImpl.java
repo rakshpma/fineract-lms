@@ -22,6 +22,7 @@ import static org.springframework.transaction.TransactionDefinition.PROPAGATION_
 
 import com.google.common.collect.Lists;
 import com.google.gson.Gson;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -51,6 +52,7 @@ import org.apache.fineract.infrastructure.core.data.CommandProcessingResultBuild
 import org.apache.fineract.infrastructure.core.exception.PlatformInternalServerException;
 import org.apache.fineract.infrastructure.core.exception.PlatformRequestBodyItemLimitValidationException;
 import org.apache.fineract.infrastructure.core.serialization.GoogleGsonSerializerHelper;
+import org.apache.fineract.infrastructure.core.service.DateUtils;
 import org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil;
 import org.apache.fineract.infrastructure.jobs.data.JobParameterDTO;
 import org.apache.fineract.infrastructure.jobs.domain.CustomJobParameterRepository;
@@ -112,7 +114,7 @@ public class InlineLoanCOBExecutorServiceImpl implements InlineExecutorService<L
         List<LoanIdAndLastClosedBusinessDate> loansToBeProcessed = getLoansToBeProcessed(loanIds, cobBusinessDate);
         LocalDate executingBusinessDate = getOldestCOBBusinessDate(loansToBeProcessed).plusDays(1);
         if (!loansToBeProcessed.isEmpty()) {
-            while (!executingBusinessDate.isAfter(cobBusinessDate)) {
+            while (!DateUtils.isAfter(executingBusinessDate, cobBusinessDate)) {
                 execute(getLoanIdsToBeProcessed(loansToBeProcessed, executingBusinessDate), jobName, executingBusinessDate);
                 executingBusinessDate = executingBusinessDate.plusDays(1);
             }
@@ -123,7 +125,7 @@ public class InlineLoanCOBExecutorServiceImpl implements InlineExecutorService<L
         List<Long> loanIdsToBeProcessed = new ArrayList<>();
         loansToBeProcessed.forEach(loan -> {
             if (loan.getLastClosedBusinessDate() != null) {
-                if (loan.getLastClosedBusinessDate().isBefore(executingBusinessDate)) {
+                if (DateUtils.isBefore(loan.getLastClosedBusinessDate(), executingBusinessDate)) {
                     loanIdsToBeProcessed.add(loan.getId());
                 }
             } else {
@@ -133,6 +135,7 @@ public class InlineLoanCOBExecutorServiceImpl implements InlineExecutorService<L
         return loanIdsToBeProcessed;
     }
 
+    @SuppressFBWarnings("SLF4J_SIGN_ONLY_FORMAT")
     private void execute(List<Long> loanIds, String jobName, LocalDate businessDate) {
         lockLoanAccounts(loanIds, businessDate);
         Job inlineLoanCOBJob;
@@ -225,9 +228,9 @@ public class InlineLoanCOBExecutorServiceImpl implements InlineExecutorService<L
                         loanAccountLock.setNewLockOwner(LockOwner.LOAN_INLINE_COB_PROCESSING);
                         loanAccountLockRepository.saveAndFlush(loanAccountLock);
                     } catch (Exception e) {
-                        String message = "Error updating lock on loan account. Locked loan ID: %s".formatted(loanAccountLock.getLoanId());
-                        log.error("{}", message, e);
-                        throw new LoanAccountLockCannotBeOverruledException(message, e);
+                        log.error("Error updating lock on loan account. Locked loan ID: {}", loanAccountLock.getLoanId(), e);
+                        throw new LoanAccountLockCannotBeOverruledException(
+                                "Error updating lock on loan account. Locked loan ID: %s".formatted(loanAccountLock.getLoanId()), e);
                     }
                 });
             }

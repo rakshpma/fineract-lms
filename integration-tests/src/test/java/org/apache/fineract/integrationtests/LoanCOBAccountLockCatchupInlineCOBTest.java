@@ -25,6 +25,7 @@ import io.restassured.path.json.JsonPath;
 import io.restassured.specification.RequestSpecification;
 import io.restassured.specification.ResponseSpecification;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -46,6 +47,7 @@ import org.apache.fineract.integrationtests.common.loans.LoanStatusChecker;
 import org.apache.fineract.integrationtests.common.loans.LoanTestLifecycleExtension;
 import org.apache.fineract.integrationtests.common.loans.LoanTransactionHelper;
 import org.apache.fineract.integrationtests.inlinecob.InlineLoanCOBHelper;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -92,7 +94,7 @@ public class LoanCOBAccountLockCatchupInlineCOBTest {
             final Integer loanProductID = createLoanProduct(overdueFeeChargeId.toString());
             Assertions.assertNotNull(loanProductID);
             HashMap loanStatusHashMap;
-            final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "10 January 2020");
+            final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "1 March 2020");
 
             Assertions.assertNotNull(loanID);
 
@@ -148,7 +150,7 @@ public class LoanCOBAccountLockCatchupInlineCOBTest {
             final Integer loanProductID = createLoanProduct(overdueFeeChargeId.toString());
             Assertions.assertNotNull(loanProductID);
             HashMap loanStatusHashMap;
-            final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "10 January 2020");
+            final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "1 March 2020");
 
             Assertions.assertNotNull(loanID);
 
@@ -193,6 +195,7 @@ public class LoanCOBAccountLockCatchupInlineCOBTest {
             loanTransactionHelper = new LoanTransactionHelper(requestSpec, responseSpec);
             loanAccountLockHelper = new LoanAccountLockHelper(requestSpec, new ResponseSpecBuilder().expectStatusCode(202).build());
 
+            // create client
             final Integer clientID = ClientHelper.createClient(requestSpec, responseSpec);
             Assertions.assertNotNull(clientID);
 
@@ -200,38 +203,50 @@ public class LoanCOBAccountLockCatchupInlineCOBTest {
                     ChargesHelper.getLoanOverdueFeeJSONWithCalculationTypePercentage("1"));
             Assertions.assertNotNull(overdueFeeChargeId);
 
+            // create loan product
             final Integer loanProductID = createLoanProduct(overdueFeeChargeId.toString());
             Assertions.assertNotNull(loanProductID);
             HashMap loanStatusHashMap;
-            final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "10 January 2020");
+            final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "1 March 2020");
 
             Assertions.assertNotNull(loanID);
 
             loanStatusHashMap = LoanStatusChecker.getStatusOfLoan(requestSpec, responseSpec, loanID);
             LoanStatusChecker.verifyLoanIsPending(loanStatusHashMap);
 
+            // approve loan
             loanStatusHashMap = loanTransactionHelper.approveLoan("01 March 2020", loanID);
             LoanStatusChecker.verifyLoanIsApproved(loanStatusHashMap);
 
             String loanDetails = loanTransactionHelper.getLoanDetails(requestSpec, responseSpec, loanID);
+
+            // disburse loan
             loanStatusHashMap = loanTransactionHelper.disburseLoanWithNetDisbursalAmount("02 March 2020", loanID,
                     JsonPath.from(loanDetails).get("netDisbursalAmount").toString());
             LoanStatusChecker.verifyLoanIsActive(loanStatusHashMap);
 
+            // update business date 2020-03-02
             BusinessDateHelper.updateBusinessDate(requestSpec, responseSpec, BusinessDateType.COB_DATE, LocalDate.of(2020, 3, 2));
 
+            // execute inline cob for the loan
             inlineLoanCOBHelper.executeInlineCOB(List.of(loanID.longValue()));
             GetLoansLoanIdResponse loan = loanTransactionHelper.getLoan(requestSpec, responseSpec, loanID);
             Assertions.assertEquals(LocalDate.of(2020, 3, 2), loan.getLastClosedBusinessDate());
 
+            // update business date to 2020-03-05
             BusinessDateHelper.updateBusinessDate(requestSpec, responseSpec, BusinessDateType.BUSINESS_DATE, LocalDate.of(2020, 3, 5));
 
+            // apply lock on the loan
             loanAccountLockHelper.placeSoftLockOnLoanAccount(loanID, "LOAN_INLINE_COB_PROCESSING", "Sample error");
 
             loanTransactionHelper = new LoanTransactionHelper(requestSpec, responseSpec);
+
+            // execute catchup which sets the last cob date first 2020-03-04 and then 2020-03-05, as this loan is two
+            // days behind
             loanCOBCatchUpHelper.executeLoanCOBCatchUp();
 
-            Utils.conditionalSleepWithMaxWait(30, 5, () -> loanCOBCatchUpHelper.isLoanCOBCatchUpRunning());
+            Awaitility.await().atMost(Duration.ofSeconds(30)).with().pollInterval(Duration.ofSeconds(5)) //
+                    .until(() -> loanCOBCatchUpHelper.isLoanCOBCatchUpFinishedFor(LocalDate.of(2020, 3, 4))); //
 
             loan = loanTransactionHelper.getLoan(requestSpec, responseSpec, loanID);
             Assertions.assertEquals(LocalDate.of(2020, 3, 4), loan.getLastClosedBusinessDate());
@@ -264,7 +279,7 @@ public class LoanCOBAccountLockCatchupInlineCOBTest {
             final Integer loanProductID = createLoanProduct(overdueFeeChargeId.toString());
             Assertions.assertNotNull(loanProductID);
             HashMap loanStatusHashMap;
-            final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "10 January 2020");
+            final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "1 March 2020");
 
             Assertions.assertNotNull(loanID);
 
@@ -323,7 +338,7 @@ public class LoanCOBAccountLockCatchupInlineCOBTest {
             final Integer loanProductID = createLoanProduct(overdueFeeChargeId.toString());
             Assertions.assertNotNull(loanProductID);
             HashMap loanStatusHashMap;
-            final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "10 January 2020");
+            final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "1 March 2020");
 
             Assertions.assertNotNull(loanID);
 
@@ -378,7 +393,7 @@ public class LoanCOBAccountLockCatchupInlineCOBTest {
             final Integer loanProductID = createLoanProduct(overdueFeeChargeId.toString());
             Assertions.assertNotNull(loanProductID);
             HashMap loanStatusHashMap;
-            final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "10 January 2020");
+            final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "1 March 2020");
 
             Assertions.assertNotNull(loanID);
 

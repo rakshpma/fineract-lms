@@ -24,7 +24,8 @@ import org.apache.fineract.portfolio.loanaccount.data.LoanAccountData;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
-@Mapper(config = AvroMapperConfig.class, uses = { LoanTransactionDataMapper.class, LoanChargeDataMapper.class })
+@Mapper(config = AvroMapperConfig.class, uses = { LoanTransactionDataMapper.class, LoanChargeDataMapper.class,
+        LoanDelinquencyPausePeriodMapper.class })
 public interface LoanAccountDataMapper {
 
     // TODO: avoid prefix "is" in class attributes; I would recommend to fix this also in the Avro structures
@@ -35,6 +36,7 @@ public interface LoanAccountDataMapper {
     @Mapping(target = "externalOwnerId", ignore = true)
     @Mapping(target = "settlementDate", ignore = true)
     @Mapping(target = "purchasePriceRatio", ignore = true)
+    @Mapping(target = "delinquent.installmentDelinquencyBuckets", ignore = true)
     LoanAccountDataV1 map(LoanAccountData source);
 
 }

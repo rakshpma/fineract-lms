@@ -33,7 +33,7 @@ import org.apache.fineract.useradministration.domain.AppUser;
 
 @Entity
 @Table(name = "m_portfolio_command_source")
-public class CommandSource extends AbstractPersistableCustom {
+public class CommandSource extends AbstractPersistableCustom<Long> {
 
     @Column(name = "action_name", nullable = true, length = 100)
     private String actionName;
@@ -133,7 +133,7 @@ public class CommandSource extends AbstractPersistableCustom {
         this.subResourceId = subResourceId;
         this.commandAsJson = commandSerializedAsJson;
         this.maker = maker;
-        this.madeOnDate = DateUtils.getOffsetDateTimeOfTenantWithMostPrecision();
+        this.madeOnDate = DateUtils.getAuditOffsetDateTime();
         this.status = status;
         this.idempotencyKey = idempotencyKey;
     }
@@ -200,6 +200,14 @@ public class CommandSource extends AbstractPersistableCustom {
 
     public void setCommandJson(final String json) {
         this.commandAsJson = json;
+    }
+
+    public AppUser getMaker() {
+        return maker;
+    }
+
+    public AppUser getChecker() {
+        return checker;
     }
 
     public String getActionName() {
@@ -314,13 +322,13 @@ public class CommandSource extends AbstractPersistableCustom {
 
     public void markAsChecked(final AppUser checker) {
         this.checker = checker;
-        this.checkedOnDate = DateUtils.getOffsetDateTimeOfTenantWithMostPrecision();
+        this.checkedOnDate = DateUtils.getAuditOffsetDateTime();
         this.status = CommandProcessingResultType.PROCESSED.getValue();
     }
 
     public void markAsRejected(final AppUser checker) {
         this.checker = checker;
-        this.checkedOnDate = DateUtils.getOffsetDateTimeOfTenantWithMostPrecision();
+        this.checkedOnDate = DateUtils.getAuditOffsetDateTime();
         this.status = CommandProcessingResultType.REJECTED.getValue();
     }
 

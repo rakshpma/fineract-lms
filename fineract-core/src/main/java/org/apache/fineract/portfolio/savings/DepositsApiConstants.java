@@ -112,6 +112,11 @@ public final class DepositsApiConstants {
     public static final String routingCodeParamName = "routingCode";
     public static final String receiptNumberParamName = "receiptNumber";
     public static final String bankNumberParamName = "bankNumber";
+    public static final String principalAmountParamName = "principalAmount";
+    public static final String annualInterestRateParamName = "annualInterestRate";
+    public static final String interestPostingPeriodInMonthsParamName = "interestPostingPeriodInMonths";
+    public static final String tenureInMonthsParamName = "tenureInMonths";
+    public static final String interestCompoundingPeriodInMonthsParamName = "interestCompoundingPeriodInMonths";
 
     // Preclosure parameters
     public static final String preClosurePenalApplicableParamName = "preClosurePenalApplicable";
@@ -218,8 +223,10 @@ public final class DepositsApiConstants {
             SavingProductAccountingParams.PAYMENT_CHANNEL_FUND_SOURCE_MAPPING.getValue(),
             SavingProductAccountingParams.SAVINGS_CONTROL.getValue(), SavingProductAccountingParams.TRANSFERS_SUSPENSE.getValue(),
             SavingProductAccountingParams.SAVINGS_REFERENCE.getValue(), SavingProductAccountingParams.FEE_INCOME_ACCOUNT_MAPPING.getValue(),
-            SavingProductAccountingParams.PENALTY_INCOME_ACCOUNT_MAPPING.getValue(), chartsParamName,
-            SavingsApiConstants.withHoldTaxParamName, SavingsApiConstants.taxGroupIdParamName));
+            SavingProductAccountingParams.PENALTY_INCOME_ACCOUNT_MAPPING.getValue(),
+            SavingProductAccountingParams.INTEREST_PAYABLE.getValue(), SavingProductAccountingParams.PENALTIES_RECEIVABLE.getValue(),
+            SavingProductAccountingParams.FEES_RECEIVABLE.getValue(), chartsParamName, SavingsApiConstants.withHoldTaxParamName,
+            SavingsApiConstants.taxGroupIdParamName));
 
     private static final Set<String> PRECLOSURE_REQUEST_DATA_PARAMETERS = new HashSet<>(
             Arrays.asList(preClosurePenalApplicableParamName, preClosurePenalInterestParamName, preClosurePenalInterestOnTypeIdParamName));
@@ -305,9 +312,21 @@ public final class DepositsApiConstants {
 
     public static final Set<String> FIXED_DEPOSIT_ACCOUNT_REQUEST_DATA_PARAMETERS = fixedDepositAccountRequestData();
     public static final Set<String> FIXED_DEPOSIT_ACCOUNT_RESPONSE_DATA_PARAMETERS = fixedDepositAccountResponseData();
-
+    public static final Set<String> FIXED_DEPOSIT_ACCOUNT_INTEREST_CALCULATION_PARAMETERS = fixedDepositInterestCalculationData();
     public static final Set<String> RECURRING_DEPOSIT_ACCOUNT_REQUEST_DATA_PARAMETERS = recurringDepositAccountRequestData();
     public static final Set<String> RECURRING_DEPOSIT_ACCOUNT_RESPONSE_DATA_PARAMETERS = recurringDepositAccountResponseData();
+
+    private static Set<String> fixedDepositInterestCalculationData() {
+        final Set<String> fixedDepositInterestCalculationData = new HashSet<>();
+        fixedDepositInterestCalculationData.add(principalAmountParamName);
+        fixedDepositInterestCalculationData.add(annualInterestRateParamName);
+        fixedDepositInterestCalculationData.add(tenureInMonthsParamName);
+        fixedDepositInterestCalculationData.add(interestPostingPeriodInMonthsParamName);
+        fixedDepositInterestCalculationData.add(interestCompoundingPeriodInMonthsParamName);
+
+        return fixedDepositInterestCalculationData;
+
+    }
 
     private static Set<String> fixedDepositAccountRequestData() {
         final Set<String> fixedDepositRequestData = new HashSet<>();

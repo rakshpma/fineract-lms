@@ -28,6 +28,8 @@ import org.apache.fineract.avro.loan.v1.DelinquencyRangeDataV1;
 import org.apache.fineract.avro.loan.v1.LoanAccountDelinquencyRangeDataV1;
 import org.apache.fineract.avro.loan.v1.LoanAmountDataV1;
 import org.apache.fineract.avro.loan.v1.LoanChargeDataRangeViewV1;
+import org.apache.fineract.avro.loan.v1.LoanInstallmentDelinquencyBucketDataV1;
+import org.apache.fineract.infrastructure.core.service.DateUtils;
 import org.apache.fineract.infrastructure.event.business.domain.BusinessEvent;
 import org.apache.fineract.infrastructure.event.business.domain.loan.LoanDelinquencyRangeChangeBusinessEvent;
 import org.apache.fineract.infrastructure.event.external.service.serialization.mapper.generic.CurrencyDataMapper;
@@ -64,6 +66,7 @@ public class LoanDelinquencyRangeChangeBusinessEventSerializer implements Busine
 
     private final CurrencyDataMapper currencyMapper;
     private final AvroDateTimeMapper dataTimeMapper;
+    private final LoanInstallmentLevelDelinquencyEventProducer installmentLevelDelinquencyEventProducer;
 
     @Override
     public <T> ByteBufferSerializable toAvroDTO(BusinessEvent<T> rawEvent) {
@@ -94,6 +97,10 @@ public class LoanDelinquencyRangeChangeBusinessEventSerializer implements Busine
                 .build();
 
         DelinquencyRangeDataV1 delinquencyRange = mapper.map(data.getDelinquencyRange());
+
+        List<LoanInstallmentDelinquencyBucketDataV1> installmentsDelinquencyData = installmentLevelDelinquencyEventProducer
+                .calculateInstallmentLevelDelinquencyData(event.get(), data.getCurrency());
+
         LoanAccountDelinquencyRangeDataV1.Builder builder = LoanAccountDelinquencyRangeDataV1.newBuilder();
         return builder//
                 .setLoanId(id)//
@@ -104,13 +111,13 @@ public class LoanDelinquencyRangeChangeBusinessEventSerializer implements Busine
                 .setAmount(amount)//
                 .setCurrency(currencyMapper.map(data.getCurrency()))//
                 .setDelinquentDate(delinquentDate)//
-                .build();
+                .setInstallmentDelinquencyBuckets(installmentsDelinquencyData).build();
     }
 
     private BigDecimal calculateDataSummary(Loan loan, BiFunction<Loan, LoanRepaymentScheduleInstallment, BigDecimal> mapper) {
-        return loan.getRepaymentScheduleInstallments().stream().map(installment -> mapper.apply(loan, installment)).reduce(BigDecimal.ZERO,
-                BigDecimal::add);
-
+        return loan.getRepaymentScheduleInstallments().stream()
+                .filter(installment -> DateUtils.isBeforeBusinessDate(installment.getDueDate()))
+                .map(installment -> mapper.apply(loan, installment)).reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     @Override

@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.TimeZone;
 import org.apache.fineract.infrastructure.businessdate.domain.BusinessDateType;
 import org.apache.fineract.infrastructure.core.domain.FineractPlatformTenant;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -41,6 +42,11 @@ public class DateUtilsTest {
     public void init() {
         ThreadLocalContextUtil.setTenant(new FineractPlatformTenant(1L, "default", "Default", "Asia/Kolkata", null));
         ThreadLocalContextUtil.setBusinessDates(new HashMap<>(Map.of(BusinessDateType.BUSINESS_DATE, LocalDate.of(2022, 6, 12))));
+    }
+
+    @AfterEach
+    public void tearDown() {
+        ThreadLocalContextUtil.reset();
     }
 
     @Test
@@ -56,22 +62,22 @@ public class DateUtilsTest {
 
     @Test
     public void getLocalDateOfTenant() {
-        assertEquals(LocalDate.now(ZoneId.of("Asia/Kolkata")), DateUtils.getLocalDateOfTenant());
+        assertTrue(DateUtils.isEqualTenantDate(LocalDate.now(ZoneId.of("Asia/Kolkata"))));
     }
 
     @Test
     public void getLocalDateTimeOfTenant() {
-        assertEquals(LocalDateTime.now(ZoneId.of("Asia/Kolkata")).truncatedTo(ChronoUnit.SECONDS), DateUtils.getLocalDateTimeOfTenant());
+        assertTrue(DateUtils.isEqualTenantDateTime(LocalDateTime.now(ZoneId.of("Asia/Kolkata")), ChronoUnit.SECONDS));
     }
 
     @Test
     public void getOffsetDateTimeOfTenant() {
-        assertEquals(OffsetDateTime.now(ZoneId.of("Asia/Kolkata")).truncatedTo(ChronoUnit.SECONDS), DateUtils.getOffsetDateTimeOfTenant());
+        assertTrue(DateUtils.isEqualTenantDateTime(OffsetDateTime.now(ZoneId.of("Asia/Kolkata")), ChronoUnit.SECONDS));
     }
 
     @Test
     public void getLocalDateTimeOfSystem() {
-        assertEquals(LocalDateTime.now(ZoneId.systemDefault()).truncatedTo(ChronoUnit.SECONDS), DateUtils.getLocalDateTimeOfSystem());
+        assertTrue(DateUtils.isEqualSystemDateTime(LocalDateTime.now(ZoneId.systemDefault()), ChronoUnit.SECONDS));
     }
 
     @Test
@@ -83,6 +89,6 @@ public class DateUtilsTest {
 
     @Test
     public void getBusinesLocalDate() {
-        assertEquals(LocalDate.of(2022, 6, 12), DateUtils.getBusinessLocalDate());
+        assertTrue(DateUtils.isEqualBusinessDate(LocalDate.of(2022, 6, 12)));
     }
 }

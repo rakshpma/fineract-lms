@@ -124,9 +124,18 @@ public class Money implements Comparable<Money> {
         BigDecimal amountScaled = existingVal;
         BigDecimal inMultiplesOfValue = BigDecimal.valueOf(inMultiplesOf.intValue());
         if (inMultiplesOfValue.compareTo(BigDecimal.ZERO) > 0) {
-            amountScaled = existingVal.divide(inMultiplesOfValue, 0, RoundingMode.HALF_UP).multiply(inMultiplesOfValue);
+            amountScaled = existingVal.divide(inMultiplesOfValue, 0, MoneyHelper.getRoundingMode()).multiply(inMultiplesOfValue);
         }
         return amountScaled;
+    }
+
+    public static Money roundToMultiplesOf(final Money existingVal, final Integer inMultiplesOf) {
+        BigDecimal amountScaled = existingVal.getAmount();
+        BigDecimal inMultiplesOfValue = BigDecimal.valueOf(inMultiplesOf.intValue());
+        if (inMultiplesOfValue.compareTo(BigDecimal.ZERO) > 0) {
+            amountScaled = amountScaled.divide(inMultiplesOfValue, 0, MoneyHelper.getRoundingMode()).multiply(inMultiplesOfValue);
+        }
+        return Money.of(existingVal.getCurrency(), amountScaled);
     }
 
     public static double ceiling(final double n, final double s) {

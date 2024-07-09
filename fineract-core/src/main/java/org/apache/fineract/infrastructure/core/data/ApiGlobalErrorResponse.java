@@ -116,7 +116,8 @@ public class ApiGlobalErrorResponse {
         if (identifier != null) {
             details += " [" + identifier + ']';
         }
-        String msg = "The server is currently unable to handle the request due to concurrent modification" + details + ", please try again";
+        String msg = "The server is currently unable to handle the request due to concurrent modification " + details
+                + ", please try again";
         return create(SC_CONFLICT, "error.msg.platform.service." + type + ".conflict", msg, msg);
     }
 

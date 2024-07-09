@@ -303,6 +303,8 @@ public final class LoanEnumerations {
                     LoanTransactionType.PAYOUT_REFUND.getCode(), "Payout Refund");
             case GOODWILL_CREDIT -> new LoanTransactionEnumData(LoanTransactionType.GOODWILL_CREDIT.getValue().longValue(),
                     LoanTransactionType.GOODWILL_CREDIT.getCode(), "Goodwill Credit");
+            case INTEREST_PAYMENT_WAIVER -> new LoanTransactionEnumData(LoanTransactionType.INTEREST_PAYMENT_WAIVER.getValue().longValue(),
+                    LoanTransactionType.INTEREST_PAYMENT_WAIVER.getCode(), "Interest Payment Waiver");
             case CHARGE_REFUND -> new LoanTransactionEnumData(LoanTransactionType.CHARGE_REFUND.getValue().longValue(),
                     LoanTransactionType.CHARGE_REFUND.getCode(), "Charge Refund");
             case CHARGEBACK -> new LoanTransactionEnumData(LoanTransactionType.CHARGEBACK.getValue().longValue(),
@@ -313,6 +315,12 @@ public final class LoanEnumerations {
                     LoanTransactionType.CHARGE_OFF.getCode(), "Charge-off");
             case DOWN_PAYMENT -> new LoanTransactionEnumData(LoanTransactionType.DOWN_PAYMENT.getValue().longValue(),
                     LoanTransactionType.DOWN_PAYMENT.getCode(), "Down Payment");
+            case REAGE -> new LoanTransactionEnumData(LoanTransactionType.REAGE.getValue().longValue(), LoanTransactionType.REAGE.getCode(),
+                    "Re-age");
+            case REAMORTIZE -> new LoanTransactionEnumData(LoanTransactionType.REAMORTIZE.getValue().longValue(),
+                    LoanTransactionType.REAMORTIZE.getCode(), "Re-amortize");
+            case ACCRUAL_ACTIVITY -> new LoanTransactionEnumData(LoanTransactionType.ACCRUAL_ACTIVITY.getValue().longValue(),
+                    LoanTransactionType.ACCRUAL_ACTIVITY.getCode(), "Accrual Activity");
         };
     }
 

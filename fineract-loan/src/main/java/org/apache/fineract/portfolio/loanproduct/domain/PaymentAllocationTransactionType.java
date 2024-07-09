@@ -18,6 +18,7 @@
  */
 package org.apache.fineract.portfolio.loanproduct.domain;
 
+// TODO FINERACT-1932-Fineract modularization: Move to fineract-progressive-loan module after refactor of Loan and LoanProduct classes
 import java.util.Arrays;
 import java.util.List;
 import lombok.Getter;
@@ -37,7 +38,10 @@ public enum PaymentAllocationTransactionType {
     GOODWILL_CREDIT(LoanTransactionType.GOODWILL_CREDIT, "Goodwill credit"), //
     CHARGE_REFUND(LoanTransactionType.CHARGE_REFUND, "Charge refund"), //
     CHARGE_ADJUSTMENT(LoanTransactionType.CHARGE_ADJUSTMENT, "Charge adjustment"), //
-    WAIVE_INTEREST(LoanTransactionType.WAIVE_INTEREST, "Waive interest");//
+    WAIVE_INTEREST(LoanTransactionType.WAIVE_INTEREST, "Waive interest"), //
+    CHARGE_PAYMENT(LoanTransactionType.CHARGE_PAYMENT, "Charge payment"), //
+    REFUND_FOR_ACTIVE_LOAN(LoanTransactionType.REFUND_FOR_ACTIVE_LOAN, "Refund for active loan"), //
+    INTEREST_PAYMENT_WAIVER(LoanTransactionType.INTEREST_PAYMENT_WAIVER, "Interest payment waiver");
 
     private final LoanTransactionType loanTransactionType;
     private final String humanReadableName;

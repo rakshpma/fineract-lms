@@ -37,7 +37,6 @@ import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
@@ -45,9 +44,11 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TimeZone;
 import org.apache.fineract.client.models.BusinessDateRequest;
 import org.apache.fineract.client.models.GetJournalEntriesTransactionIdResponse;
@@ -102,6 +103,9 @@ public class SchedulerJobsTestResults {
     private static final String TO_ACCOUNT_TYPE_SAVINGS = "2";
     private static final String DATE_OF_JOINING = "01 January 2011";
     private static final String TRANSACTION_DATE = "01 March 2013";
+    public static final String LOAN_APPROVAL_DATE = "01 March 2013";
+    public static final String LOAN_APPROVAL_DATE_PLUS_ONE = "02 March 2013";
+    public static final String LOAN_DISBURSAL_DATE = "01 March 2013";
     private static final String ACCOUNT_TYPE_INDIVIDUAL = "INDIVIDUAL";
     private static final String MINIMUM_OPENING_BALANCE = "1000";
     private static final Float SP_BALANCE = Float.valueOf(MINIMUM_OPENING_BALANCE);
@@ -141,48 +145,62 @@ public class SchedulerJobsTestResults {
 
     @Test
     public void testApplyAnnualFeeForSavingsJobOutcome() throws InterruptedException {
-        this.savingsAccountHelper = new SavingsAccountHelper(requestSpec, responseSpec);
+        Integer savingsId = null;
+        try {
+            GlobalConfigurationHelper.updateIsBusinessDateEnabled(requestSpec, responseSpec, Boolean.TRUE);
 
-        final Integer clientID = ClientHelper.createClient(requestSpec, responseSpec);
-        Assertions.assertNotNull(clientID);
+            LocalDate submittedDate = LocalDate.of(2022, 9, 28);
+            String submittedDateString = "28 September 2022";
+            BusinessDateHelper.updateBusinessDate(requestSpec, responseSpec, BusinessDateType.BUSINESS_DATE, submittedDate);
+            this.savingsAccountHelper = new SavingsAccountHelper(requestSpec, responseSpec);
 
-        final Integer savingsProductID = createSavingsProduct(requestSpec, responseSpec,
-                ClientSavingsIntegrationTest.MINIMUM_OPENING_BALANCE);
-        Assertions.assertNotNull(savingsProductID);
+            final Integer clientID = ClientHelper.createClient(requestSpec, responseSpec);
+            Assertions.assertNotNull(clientID);
 
-        final Integer savingsId = this.savingsAccountHelper.applyForSavingsApplication(clientID, savingsProductID,
-                ClientSavingsIntegrationTest.ACCOUNT_TYPE_INDIVIDUAL);
-        Assertions.assertNotNull(savingsProductID);
+            final Integer savingsProductID = createSavingsProduct(requestSpec, responseSpec,
+                    ClientSavingsIntegrationTest.MINIMUM_OPENING_BALANCE);
+            Assertions.assertNotNull(savingsProductID);
 
-        HashMap savingsStatusHashMap = SavingsStatusChecker.getStatusOfSavings(requestSpec, responseSpec, savingsId);
-        SavingsStatusChecker.verifySavingsIsPending(savingsStatusHashMap);
+            savingsId = this.savingsAccountHelper.applyForSavingsApplicationOnDate(clientID, savingsProductID,
+                    ClientSavingsIntegrationTest.ACCOUNT_TYPE_INDIVIDUAL, submittedDateString);
+            Assertions.assertNotNull(savingsProductID);
 
-        final Integer annualFeeChargeId = ChargesHelper.createCharges(requestSpec, responseSpec, ChargesHelper.getSavingsAnnualFeeJSON());
-        Assertions.assertNotNull(annualFeeChargeId);
+            HashMap savingsStatusHashMap = SavingsStatusChecker.getStatusOfSavings(requestSpec, responseSpec, savingsId);
+            SavingsStatusChecker.verifySavingsIsPending(savingsStatusHashMap);
 
-        this.savingsAccountHelper.addChargesForSavings(savingsId, annualFeeChargeId, true);
-        ArrayList<HashMap> chargesPendingState = this.savingsAccountHelper.getSavingsCharges(savingsId);
-        Assertions.assertEquals(1, chargesPendingState.size());
+            final Integer annualFeeChargeId = ChargesHelper.createCharges(requestSpec, responseSpec,
+                    ChargesHelper.getSavingsAnnualFeeJSON());
+            Assertions.assertNotNull(annualFeeChargeId);
 
-        savingsStatusHashMap = this.savingsAccountHelper.approveSavings(savingsId);
-        SavingsStatusChecker.verifySavingsIsApproved(savingsStatusHashMap);
+            this.savingsAccountHelper.addChargesForSavingsWithDueDateAndFeeOnMonthDay(savingsId, annualFeeChargeId, "10 January 2023", 100,
+                    "15 January");
+            ArrayList<HashMap> chargesPendingState = this.savingsAccountHelper.getSavingsCharges(savingsId);
+            Assertions.assertEquals(1, chargesPendingState.size());
 
-        savingsStatusHashMap = this.savingsAccountHelper.activateSavings(savingsId);
-        SavingsStatusChecker.verifySavingsIsActive(savingsStatusHashMap);
+            savingsStatusHashMap = this.savingsAccountHelper.approveSavingsOnDate(savingsId, submittedDateString);
+            SavingsStatusChecker.verifySavingsIsApproved(savingsStatusHashMap);
 
-        String JobName = "Apply Annual Fee For Savings";
+            savingsStatusHashMap = this.savingsAccountHelper.activateSavings(savingsId, submittedDateString);
+            SavingsStatusChecker.verifySavingsIsActive(savingsStatusHashMap);
 
-        this.schedulerJobHelper.executeAndAwaitJob(JobName);
+            BusinessDateHelper.updateBusinessDate(requestSpec, responseSpec, BusinessDateType.BUSINESS_DATE, LocalDate.of(2022, 11, 11));
+            String JobName = "Apply Annual Fee For Savings";
 
-        final HashMap savingsDetails = this.savingsAccountHelper.getSavingsDetails(savingsId);
-        final HashMap annualFeeDetails = (HashMap) savingsDetails.get("annualFee");
-        ArrayList<Integer> annualFeeDueDateAsArrayList = (ArrayList<Integer>) annualFeeDetails.get("dueDate");
-        LocalDate nextDueDateForAnnualFee = LocalDate.of(annualFeeDueDateAsArrayList.get(0), annualFeeDueDateAsArrayList.get(1),
-                annualFeeDueDateAsArrayList.get(2));
-        LocalDate todaysDate = LocalDate.now(ZoneId.of("Asia/Kolkata"));
+            this.schedulerJobHelper.executeAndAwaitJob(JobName);
 
-        Truth.assertWithMessage("Verifying that all due Annual Fees have been paid").that(nextDueDateForAnnualFee)
-                .isGreaterThan(todaysDate);
+            final HashMap savingsDetails = this.savingsAccountHelper.getSavingsDetails(savingsId);
+            final HashMap annualFeeDetails = (HashMap) savingsDetails.get("annualFee");
+            ArrayList<Integer> annualFeeDueDateAsArrayList = (ArrayList<Integer>) annualFeeDetails.get("dueDate");
+            LocalDate nextDueDateForAnnualFee = LocalDate.of(annualFeeDueDateAsArrayList.get(0), annualFeeDueDateAsArrayList.get(1),
+                    annualFeeDueDateAsArrayList.get(2));
+            LocalDate expectedDueDate = LocalDate.of(2023, 1, 15);
+
+            Truth.assertWithMessage("Verifying that all due Annual Fees have been paid").that(nextDueDateForAnnualFee)
+                    .isEquivalentAccordingToCompareTo(expectedDueDate);
+        } finally {
+            savingsAccountHelper.closeSavingsAccountOnDate(savingsId, "true", "11 November 2022");
+            GlobalConfigurationHelper.updateIsBusinessDateEnabled(requestSpec, responseSpec, Boolean.FALSE);
+        }
     }
 
     @Test
@@ -248,14 +266,13 @@ public class SchedulerJobsTestResults {
         final Integer loanProductID = createLoanProduct(null);
         Assertions.assertNotNull(loanProductID);
 
-        final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), savingsId.toString(),
-                "10 January 2013");
+        final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), savingsId.toString(), "1 March 2013");
         Assertions.assertNotNull(loanID);
 
         HashMap loanStatusHashMap = LoanStatusChecker.getStatusOfLoan(requestSpec, responseSpec, loanID);
         LoanStatusChecker.verifyLoanIsPending(loanStatusHashMap);
 
-        loanStatusHashMap = this.loanTransactionHelper.approveLoan(AccountTransferTest.LOAN_APPROVAL_DATE, loanID);
+        loanStatusHashMap = this.loanTransactionHelper.approveLoan(LOAN_APPROVAL_DATE, loanID);
         LoanStatusChecker.verifyLoanIsApproved(loanStatusHashMap);
 
         Integer specifiedDueDateChargeId = ChargesHelper.createCharges(requestSpec, responseSpec,
@@ -268,7 +285,7 @@ public class SchedulerJobsTestResults {
         Assertions.assertEquals(1, chargesPendingState.size());
 
         String loanDetails = this.loanTransactionHelper.getLoanDetails(requestSpec, responseSpec, loanID);
-        loanStatusHashMap = this.loanTransactionHelper.disburseLoanWithNetDisbursalAmount(AccountTransferTest.LOAN_DISBURSAL_DATE, loanID,
+        loanStatusHashMap = this.loanTransactionHelper.disburseLoanWithNetDisbursalAmount(LOAN_DISBURSAL_DATE, loanID,
                 JsonPath.from(loanDetails).get("netDisbursalAmount").toString());
         LoanStatusChecker.verifyLoanIsActive(loanStatusHashMap);
         final HashMap summaryBefore = this.savingsAccountHelper.getSavingsSummary(savingsId);
@@ -300,17 +317,17 @@ public class SchedulerJobsTestResults {
         final Integer loanProductID = createLoanProduct(null);
         Assertions.assertNotNull(loanProductID);
 
-        final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "10 January 2013");
+        final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "01 March 2013");
         Assertions.assertNotNull(loanID);
 
         HashMap loanStatusHashMap = LoanStatusChecker.getStatusOfLoan(requestSpec, responseSpec, loanID);
         LoanStatusChecker.verifyLoanIsPending(loanStatusHashMap);
 
-        loanStatusHashMap = this.loanTransactionHelper.approveLoan(AccountTransferTest.LOAN_APPROVAL_DATE, loanID);
+        loanStatusHashMap = this.loanTransactionHelper.approveLoan(LOAN_APPROVAL_DATE, loanID);
         LoanStatusChecker.verifyLoanIsApproved(loanStatusHashMap);
 
         String loanDetails = this.loanTransactionHelper.getLoanDetails(requestSpec, responseSpec, loanID);
-        loanStatusHashMap = this.loanTransactionHelper.disburseLoanWithNetDisbursalAmount(AccountTransferTest.LOAN_DISBURSAL_DATE, loanID,
+        loanStatusHashMap = this.loanTransactionHelper.disburseLoanWithNetDisbursalAmount(LOAN_DISBURSAL_DATE, loanID,
                 JsonPath.from(loanDetails).get("netDisbursalAmount").toString());
         LoanStatusChecker.verifyLoanIsActive(loanStatusHashMap);
 
@@ -330,21 +347,213 @@ public class SchedulerJobsTestResults {
 
         if (!enabled) {
             enabled = true;
-            configId = GlobalConfigurationHelper.updateEnabledFlagForGlobalConfiguration(requestSpec, responseSpec, configId, enabled);
+            GlobalConfigurationHelper.updateEnabledFlagForGlobalConfiguration(requestSpec, responseSpec, configId, enabled);
         }
 
         holidayId = HolidayHelper.activateHolidays(requestSpec, responseSpec, holidayId.toString());
         Assertions.assertNotNull(holidayId);
 
+        HashMap holidayData = HolidayHelper.getHolidayById(requestSpec, responseSpec, holidayId.toString());
+        ArrayList<Integer> repaymentsRescheduledDate = (ArrayList<Integer>) holidayData.get("repaymentsRescheduledTo");
+        Assertions.assertNotNull(repaymentsRescheduledDate);
+
+        // Loan Repayment Schedule Before Apply Holidays To Loans
+        final LinkedHashMap repaymentScheduleHashMapBeforeHolidaysApply = JsonPath.from(loanDetails).get("repaymentSchedule");
+        final ArrayList<LinkedHashMap> periodsBeforeHolidaysApply = (ArrayList<LinkedHashMap>) repaymentScheduleHashMapBeforeHolidaysApply
+                .get("periods");
+
+        for (LinkedHashMap period : periodsBeforeHolidaysApply) {
+            final ArrayList<Integer> fromDate = (ArrayList<Integer>) period.get("fromDate");
+            if (fromDate != null) {
+                final Integer fromDateMonth = fromDate.get(1);
+                final Integer repaymentsRescheduledDateMonth = repaymentsRescheduledDate.get(1);
+                if (Objects.equals(fromDateMonth, repaymentsRescheduledDateMonth)) {
+                    final Integer repaymentsRescheduledDateDay = repaymentsRescheduledDate.get(2);
+                    final Integer fromDateDay = fromDate.get(2);
+                    Assertions.assertNotEquals(repaymentsRescheduledDateDay, fromDateDay,
+                            "Verifying Repayment Rescheduled Day before Running Apply Holidays to Loans Scheduler Job");
+                }
+            }
+        }
+
+        String jobName = "Apply Holidays To Loans";
+
+        this.schedulerJobHelper.executeAndAwaitJob(jobName);
+
+        // Loan Repayment Schedule After Apply Holidays To Loans
+        loanDetails = this.loanTransactionHelper.getLoanDetails(requestSpec, responseSpec, loanID);
+        final LinkedHashMap repaymentScheduleHashMapAfterHolidaysApply = JsonPath.from(loanDetails).get("repaymentSchedule");
+        final ArrayList<LinkedHashMap> periodsAfterHolidaysApply = (ArrayList<LinkedHashMap>) repaymentScheduleHashMapAfterHolidaysApply
+                .get("periods");
+        ArrayList<Integer> dateToApplyHolidays = null;
+
+        for (LinkedHashMap periodBefore : periodsBeforeHolidaysApply) {
+            for (LinkedHashMap periodAfter : periodsAfterHolidaysApply) {
+                final ArrayList<Integer> fromDateBefore = (ArrayList<Integer>) periodBefore.get("fromDate");
+                final ArrayList<Integer> fromDateAfter = (ArrayList<Integer>) periodAfter.get("fromDate");
+
+                if (fromDateBefore != null && fromDateAfter != null) {
+                    final Integer fromDateMonthBefore = fromDateBefore.get(1);
+                    final Integer fromDateMonthAfter = fromDateAfter.get(1);
+                    final Integer repaymentsRescheduledDateMonth = repaymentsRescheduledDate.get(1);
+
+                    if (Objects.equals(fromDateMonthAfter, repaymentsRescheduledDateMonth)) {
+                        dateToApplyHolidays = fromDateAfter;
+                    } else if (Objects.equals(fromDateMonthAfter, fromDateMonthBefore)) {
+                        assertEqualDay(fromDateBefore, fromDateAfter,
+                                "Verifying Repayment Scheduled Days Before And After Running Apply Holidays to Loans Scheduler Job Are Equals");
+                    }
+                }
+            }
+        }
+
+        Assertions.assertNotNull(dateToApplyHolidays);
+        assertEqualDay(repaymentsRescheduledDate, dateToApplyHolidays,
+                "Verifying Repayment Rescheduled Day after Running Apply Holidays to Loans Scheduler Job");
+    }
+
+    private void assertEqualDay(ArrayList<Integer> fromDateBefore, ArrayList<Integer> fromDateAfter, String message) {
+        Integer fromDateDayBefore = fromDateBefore.get(2);
+        Integer fromDateDayAfter = fromDateAfter.get(2);
+        Assertions.assertEquals(fromDateDayBefore, fromDateDayAfter, message);
+    }
+
+    @Test
+    public void testApplyType1HolidaysToLoansJobOutcome() throws InterruptedException {
+        this.loanTransactionHelper = new LoanTransactionHelper(requestSpec, responseSpec);
+
+        final Integer clientID = ClientHelper.createClient(requestSpec, responseSpec);
+        Assertions.assertNotNull(clientID);
+
+        Integer holidayId = HolidayHelper.createTyoe1Holidays(requestSpec, responseSpec);
+        Assertions.assertNotNull(holidayId);
+
+        final Integer loanProductID = createLoanProduct(null);
+        Assertions.assertNotNull(loanProductID);
+
+        final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "04 January 2024");
+        Assertions.assertNotNull(loanID);
+
+        HashMap loanStatusHashMap = LoanStatusChecker.getStatusOfLoan(requestSpec, responseSpec, loanID);
+        LoanStatusChecker.verifyLoanIsPending(loanStatusHashMap);
+
+        loanStatusHashMap = this.loanTransactionHelper.approveLoan("04 January 2024", loanID);
+        LoanStatusChecker.verifyLoanIsApproved(loanStatusHashMap);
+
+        String loanDetails = this.loanTransactionHelper.getLoanDetails(requestSpec, responseSpec, loanID);
+        loanStatusHashMap = this.loanTransactionHelper.disburseLoanWithNetDisbursalAmount("04 January 2024", loanID,
+                JsonPath.from(loanDetails).get("netDisbursalAmount").toString());
+        LoanStatusChecker.verifyLoanIsActive(loanStatusHashMap);
+
+        // Retrieving All Global Configuration details
+        final ArrayList<HashMap> globalConfig = GlobalConfigurationHelper.getAllGlobalConfigurations(requestSpec, responseSpec);
+        Assertions.assertNotNull(globalConfig);
+
+        // Updating Value for reschedule-repayments-on-holidays Global
+        // Configuration
+        Integer configId = (Integer) globalConfig.get(3).get("id");
+        Assertions.assertNotNull(configId);
+
+        HashMap configData = GlobalConfigurationHelper.getGlobalConfigurationById(requestSpec, responseSpec, configId.toString());
+        Assertions.assertNotNull(configData);
+
+        Boolean enabled = (Boolean) globalConfig.get(3).get("enabled");
+
+        if (!enabled) {
+            enabled = true;
+            GlobalConfigurationHelper.updateEnabledFlagForGlobalConfiguration(requestSpec, responseSpec, configId, enabled);
+        }
+
+        holidayId = HolidayHelper.activateHolidays(requestSpec, responseSpec, holidayId.toString());
+        Assertions.assertNotNull(holidayId);
+
+        HashMap holidayData = HolidayHelper.getHolidayById(requestSpec, responseSpec, holidayId.toString());
+
+        LinkedHashMap repaymentScheduleHashMap = JsonPath.from(loanDetails).get("repaymentSchedule");
+        ArrayList<LinkedHashMap> periods = (ArrayList<LinkedHashMap>) repaymentScheduleHashMap.get("periods");
         String JobName = "Apply Holidays To Loans";
 
         this.schedulerJobHelper.executeAndAwaitJob(JobName);
 
-        HashMap holidayData = HolidayHelper.getHolidayById(requestSpec, responseSpec, holidayId.toString());
-        ArrayList<Integer> repaymentsRescheduledDate = (ArrayList<Integer>) holidayData.get("repaymentsRescheduledTo");
+        // Loan Repayment Schedule After Apply Holidays To Loans
+        loanDetails = this.loanTransactionHelper.getLoanDetails(requestSpec, responseSpec, loanID);
+        repaymentScheduleHashMap = JsonPath.from(loanDetails).get("repaymentSchedule");
+        ArrayList<LinkedHashMap> periodsAfterRescheduleApplied = (ArrayList<LinkedHashMap>) repaymentScheduleHashMap.get("periods");
 
-        Assertions.assertEquals(repaymentsRescheduledDate, repaymentsRescheduledDate,
+        ArrayList<Integer> fromDateValues = (ArrayList<Integer>) periods.get(1).get("fromDate");
+        LocalDate fromDate = LocalDate.of(fromDateValues.get(0), fromDateValues.get(1), fromDateValues.get(2));
+        ArrayList<Integer> dueDateValues = (ArrayList<Integer>) periods.get(1).get("dueDate");
+        LocalDate dueDate = LocalDate.of(dueDateValues.get(0), dueDateValues.get(1), dueDateValues.get(2));
+        Assertions.assertEquals(LocalDate.of(2024, 1, 4), fromDate,
+                "Verifying Repayment Rescheduled Date before Running Apply Holidays to Loans Scheduler Job");
+        Assertions.assertEquals(LocalDate.of(2024, 2, 4), dueDate,
+                "Verifying Repayment Rescheduled Date before Running Apply Holidays to Loans Scheduler Job");
+
+        fromDateValues = (ArrayList<Integer>) periods.get(2).get("fromDate");
+        fromDate = LocalDate.of(fromDateValues.get(0), fromDateValues.get(1), fromDateValues.get(2));
+        dueDateValues = (ArrayList<Integer>) periods.get(2).get("dueDate");
+        dueDate = LocalDate.of(dueDateValues.get(0), dueDateValues.get(1), dueDateValues.get(2));
+        Assertions.assertEquals(LocalDate.of(2024, 2, 4), fromDate,
+                "Verifying Repayment Rescheduled Date before Running Apply Holidays to Loans Scheduler Job");
+        Assertions.assertEquals(LocalDate.of(2024, 3, 4), dueDate,
+                "Verifying Repayment Rescheduled Date before Running Apply Holidays to Loans Scheduler Job");
+
+        fromDateValues = (ArrayList<Integer>) periods.get(3).get("fromDate");
+        fromDate = LocalDate.of(fromDateValues.get(0), fromDateValues.get(1), fromDateValues.get(2));
+        dueDateValues = (ArrayList<Integer>) periods.get(3).get("dueDate");
+        dueDate = LocalDate.of(dueDateValues.get(0), dueDateValues.get(1), dueDateValues.get(2));
+        Assertions.assertEquals(LocalDate.of(2024, 3, 4), fromDate,
+                "Verifying Repayment Rescheduled Date before Running Apply Holidays to Loans Scheduler Job");
+        Assertions.assertEquals(LocalDate.of(2024, 4, 4), dueDate,
+                "Verifying Repayment Rescheduled Date before Running Apply Holidays to Loans Scheduler Job");
+
+        fromDateValues = (ArrayList<Integer>) periods.get(4).get("fromDate");
+        fromDate = LocalDate.of(fromDateValues.get(0), fromDateValues.get(1), fromDateValues.get(2));
+        dueDateValues = (ArrayList<Integer>) periods.get(4).get("dueDate");
+        dueDate = LocalDate.of(dueDateValues.get(0), dueDateValues.get(1), dueDateValues.get(2));
+        Assertions.assertEquals(LocalDate.of(2024, 4, 4), fromDate,
+                "Verifying Repayment Rescheduled Date before Running Apply Holidays to Loans Scheduler Job");
+        Assertions.assertEquals(LocalDate.of(2024, 5, 4), dueDate,
+                "Verifying Repayment Rescheduled Date before Running Apply Holidays to Loans Scheduler Job");
+
+        fromDateValues = (ArrayList<Integer>) periodsAfterRescheduleApplied.get(1).get("fromDate");
+        fromDate = LocalDate.of(fromDateValues.get(0), fromDateValues.get(1), fromDateValues.get(2));
+        dueDateValues = (ArrayList<Integer>) periodsAfterRescheduleApplied.get(1).get("dueDate");
+        dueDate = LocalDate.of(dueDateValues.get(0), dueDateValues.get(1), dueDateValues.get(2));
+        Assertions.assertEquals(LocalDate.of(2024, 1, 4), fromDate,
                 "Verifying Repayment Rescheduled Date after Running Apply Holidays to Loans Scheduler Job");
+        Assertions.assertEquals(LocalDate.of(2024, 2, 4), dueDate,
+                "Verifying Repayment Rescheduled Date after Running Apply Holidays to Loans Scheduler Job");
+
+        fromDateValues = (ArrayList<Integer>) periodsAfterRescheduleApplied.get(2).get("fromDate");
+        fromDate = LocalDate.of(fromDateValues.get(0), fromDateValues.get(1), fromDateValues.get(2));
+        dueDateValues = (ArrayList<Integer>) periodsAfterRescheduleApplied.get(2).get("dueDate");
+        dueDate = LocalDate.of(dueDateValues.get(0), dueDateValues.get(1), dueDateValues.get(2));
+        Assertions.assertEquals(LocalDate.of(2024, 2, 4), fromDate,
+                "Verifying Repayment Rescheduled Date after Running Apply Holidays to Loans Scheduler Job");
+        Assertions.assertEquals(LocalDate.of(2024, 3, 4), dueDate,
+                "Verifying Repayment Rescheduled Date after Running Apply Holidays to Loans Scheduler Job");
+
+        fromDateValues = (ArrayList<Integer>) periodsAfterRescheduleApplied.get(3).get("fromDate");
+        fromDate = LocalDate.of(fromDateValues.get(0), fromDateValues.get(1), fromDateValues.get(2));
+        dueDateValues = (ArrayList<Integer>) periodsAfterRescheduleApplied.get(3).get("dueDate");
+        dueDate = LocalDate.of(dueDateValues.get(0), dueDateValues.get(1), dueDateValues.get(2));
+        Assertions.assertEquals(LocalDate.of(2024, 3, 4), fromDate,
+                "Verifying Repayment Rescheduled Date after Running Apply Holidays to Loans Scheduler Job");
+        Assertions.assertEquals(LocalDate.of(2024, 5, 4), dueDate,
+                "Verifying Repayment Rescheduled Date after Running Apply Holidays to Loans Scheduler Job");
+
+        fromDateValues = (ArrayList<Integer>) periodsAfterRescheduleApplied.get(4).get("fromDate");
+        fromDate = LocalDate.of(fromDateValues.get(0), fromDateValues.get(1), fromDateValues.get(2));
+        dueDateValues = (ArrayList<Integer>) periodsAfterRescheduleApplied.get(4).get("dueDate");
+        dueDate = LocalDate.of(dueDateValues.get(0), dueDateValues.get(1), dueDateValues.get(2));
+        Assertions.assertEquals(LocalDate.of(2024, 5, 4), fromDate,
+                "Verifying Repayment Rescheduled Date after Running Apply Holidays to Loans Scheduler Job");
+        Assertions.assertEquals(LocalDate.of(2024, 6, 4), dueDate,
+                "Verifying Repayment Rescheduled Date after Running Apply Holidays to Loans Scheduler Job");
+
+        // Remove the Holiday created
+        HolidayHelper.deleteHoliday(requestSpec, responseSpec, holidayId);
     }
 
     @Test
@@ -449,17 +658,17 @@ public class SchedulerJobsTestResults {
         final Integer loanProductID = createLoanProduct(null);
         Assertions.assertNotNull(loanProductID);
 
-        final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "10 January 2013");
+        final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "1 March 2013");
         Assertions.assertNotNull(loanID);
 
         HashMap loanStatusHashMap = LoanStatusChecker.getStatusOfLoan(requestSpec, responseSpec, loanID);
         LoanStatusChecker.verifyLoanIsPending(loanStatusHashMap);
 
-        loanStatusHashMap = loanTransactionHelper.approveLoan(AccountTransferTest.LOAN_APPROVAL_DATE, loanID);
+        loanStatusHashMap = loanTransactionHelper.approveLoan(LOAN_APPROVAL_DATE, loanID);
         LoanStatusChecker.verifyLoanIsApproved(loanStatusHashMap);
 
         String loanDetails = loanTransactionHelper.getLoanDetails(requestSpec, responseSpec, loanID);
-        loanStatusHashMap = loanTransactionHelper.disburseLoanWithNetDisbursalAmount(AccountTransferTest.LOAN_DISBURSAL_DATE, loanID,
+        loanStatusHashMap = loanTransactionHelper.disburseLoanWithNetDisbursalAmount(LOAN_DISBURSAL_DATE, loanID,
                 JsonPath.from(loanDetails).get("netDisbursalAmount").toString());
         LoanStatusChecker.verifyLoanIsActive(loanStatusHashMap);
 
@@ -579,7 +788,7 @@ public class SchedulerJobsTestResults {
         final Integer loanProductID = createLoanProduct(overdueFeeChargeId.toString());
         Assertions.assertNotNull(loanProductID);
 
-        final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "10 January 2020");
+        final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "1 March 2020");
         Assertions.assertNotNull(loanID);
 
         HashMap loanStatusHashMap = LoanStatusChecker.getStatusOfLoan(requestSpec, responseSpec, loanID);
@@ -625,7 +834,7 @@ public class SchedulerJobsTestResults {
         final Integer loanProductID = createLoanProductNoInterest(overdueFeeChargeId.toString());
         Assertions.assertNotNull(loanProductID);
 
-        final Integer loanID = applyForLoanApplicationNoInterest(clientID.toString(), loanProductID.toString(), null, "10 January 2020");
+        final Integer loanID = applyForLoanApplicationNoInterest(clientID.toString(), loanProductID.toString(), null, "01 March 2020");
         Assertions.assertNotNull(loanID);
 
         HashMap loanStatusHashMap = LoanStatusChecker.getStatusOfLoan(requestSpec, responseSpec, loanID);
@@ -676,7 +885,7 @@ public class SchedulerJobsTestResults {
             List<Integer> loanIDs = new ArrayList<>();
             HashMap loanStatusHashMap;
             for (int i = 0; i < 3; i++) {
-                final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "10 January 2020");
+                final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "1 March 2020");
 
                 Assertions.assertNotNull(loanID);
 
@@ -739,7 +948,7 @@ public class SchedulerJobsTestResults {
             final Integer loanProductID = createLoanProductWithPeriodicAccrual(null);
             Assertions.assertNotNull(loanProductID);
 
-            final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "10 January 2020");
+            final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "1 June 2020");
 
             Assertions.assertNotNull(loanID);
 
@@ -804,7 +1013,7 @@ public class SchedulerJobsTestResults {
             Assertions.assertNotNull(loanProductID);
             HashMap loanStatusHashMap;
 
-            final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "10 January 2020");
+            final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "1 July 2020");
 
             Assertions.assertNotNull(loanID);
 
@@ -861,7 +1070,7 @@ public class SchedulerJobsTestResults {
             Assertions.assertNotNull(loanProductID);
             HashMap loanStatusHashMap;
 
-            final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "10 January 2019");
+            final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "1 March 2019");
 
             Assertions.assertNotNull(loanID);
 
@@ -922,7 +1131,7 @@ public class SchedulerJobsTestResults {
             Assertions.assertNotNull(loanProductID);
             HashMap loanStatusHashMap;
             // Test penalty where there is 1 day grace period
-            final Integer loanID2 = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "10 January 2020");
+            final Integer loanID2 = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "1 April 2020");
 
             Assertions.assertNotNull(loanID2);
 
@@ -979,18 +1188,18 @@ public class SchedulerJobsTestResults {
         final Integer loanProductID = createLoanProduct(overdueFeeChargeId.toString());
         Assertions.assertNotNull(loanProductID);
 
-        final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "10 January 2013");
+        final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "1 March 2013");
         Assertions.assertNotNull(loanID);
 
         HashMap loanStatusHashMap = LoanStatusChecker.getStatusOfLoan(requestSpec, responseSpec, loanID);
         LoanStatusChecker.verifyLoanIsPending(loanStatusHashMap);
 
-        loanStatusHashMap = this.loanTransactionHelper.approveLoan(AccountTransferTest.LOAN_APPROVAL_DATE, loanID);
+        loanStatusHashMap = this.loanTransactionHelper.approveLoan(LOAN_APPROVAL_DATE, loanID);
         LoanStatusChecker.verifyLoanIsApproved(loanStatusHashMap);
 
         String loanDetails = this.loanTransactionHelper.getLoanDetails(requestSpec, responseSpec, loanID);
-        loanStatusHashMap = this.loanTransactionHelper.disburseLoanWithNetDisbursalAmount(AccountTransferTest.LOAN_APPROVAL_DATE_PLUS_ONE,
-                loanID, JsonPath.from(loanDetails).get("netDisbursalAmount").toString());
+        loanStatusHashMap = this.loanTransactionHelper.disburseLoanWithNetDisbursalAmount(LOAN_APPROVAL_DATE_PLUS_ONE, loanID,
+                JsonPath.from(loanDetails).get("netDisbursalAmount").toString());
         LoanStatusChecker.verifyLoanIsActive(loanStatusHashMap);
 
         String JobName = "Apply penalty to overdue loans";
@@ -1031,18 +1240,18 @@ public class SchedulerJobsTestResults {
         final Integer loanProductID = createLoanProduct(null);
         Assertions.assertNotNull(loanProductID);
 
-        final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "10 January 2013");
+        final Integer loanID = applyForLoanApplication(clientID.toString(), loanProductID.toString(), null, "1 March 2013");
         Assertions.assertNotNull(loanID);
 
         HashMap loanStatusHashMap = LoanStatusChecker.getStatusOfLoan(requestSpec, responseSpec, loanID);
         LoanStatusChecker.verifyLoanIsPending(loanStatusHashMap);
 
-        loanStatusHashMap = this.loanTransactionHelper.approveLoan(AccountTransferTest.LOAN_APPROVAL_DATE, loanID);
+        loanStatusHashMap = this.loanTransactionHelper.approveLoan(LOAN_APPROVAL_DATE, loanID);
         LoanStatusChecker.verifyLoanIsApproved(loanStatusHashMap);
 
         String loanDetails = this.loanTransactionHelper.getLoanDetails(requestSpec, responseSpec, loanID);
-        loanStatusHashMap = this.loanTransactionHelper.disburseLoanWithNetDisbursalAmount(AccountTransferTest.LOAN_APPROVAL_DATE_PLUS_ONE,
-                loanID, JsonPath.from(loanDetails).get("netDisbursalAmount").toString());
+        loanStatusHashMap = this.loanTransactionHelper.disburseLoanWithNetDisbursalAmount(LOAN_APPROVAL_DATE_PLUS_ONE, loanID,
+                JsonPath.from(loanDetails).get("netDisbursalAmount").toString());
         LoanStatusChecker.verifyLoanIsActive(loanStatusHashMap);
 
         final Boolean isNPABefore = (Boolean) this.loanTransactionHelper.getLoanDetail(requestSpec, responseSpec, loanID, "isNPA");

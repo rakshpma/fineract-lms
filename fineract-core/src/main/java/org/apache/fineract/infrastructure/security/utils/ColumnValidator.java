@@ -18,6 +18,7 @@
  */
 package org.apache.fineract.infrastructure.security.utils;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
@@ -28,37 +29,36 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.apache.fineract.infrastructure.security.service.SqlValidator;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.stereotype.Component;
 
+@Slf4j
+@RequiredArgsConstructor
 @Component
 public class ColumnValidator {
 
-    private static final Logger LOG = LoggerFactory.getLogger(ColumnValidator.class);
+    private final SqlValidator sqlValidator;
     private final JdbcTemplate jdbcTemplate;
 
-    @Autowired
-    public ColumnValidator(final JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
-    }
-
+    @SuppressFBWarnings(value = "NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE", justification = "TODO: fix this!")
     private void validateColumn(Map<String, Set<String>> tableColumnMap) {
         Connection connection = null;
+
         try {
-            connection = this.jdbcTemplate.getDataSource().getConnection();
+            connection = Objects.requireNonNull(this.jdbcTemplate.getDataSource()).getConnection();
             DatabaseMetaData dbMetaData = connection.getMetaData();
-            ResultSet resultSet = null;
             for (Map.Entry<String, Set<String>> entry : tableColumnMap.entrySet()) {
                 Set<String> columns = entry.getValue();
-                resultSet = dbMetaData.getColumns(null, null, entry.getKey(), null);
+                ResultSet resultSet = dbMetaData.getColumns(null, null, entry.getKey(), null);
                 Set<String> tableColumns = getTableColumns(resultSet);
-                if (columns.size() > 0 && tableColumns.size() == 0) {
+                if (!columns.isEmpty() && tableColumns.isEmpty()) {
                     throw new SQLInjectionException();
                 }
                 for (String requestedColumn : columns) {
@@ -84,7 +84,7 @@ public class ColumnValidator {
                 columns.add(rs.getString("column_name"));
             }
         } catch (SQLException e) {
-            LOG.error("Problem occurred in getTableColumns function", e);
+            log.error("Problem occurred in getTableColumns function", e);
         }
         return columns;
     }
@@ -94,7 +94,7 @@ public class ColumnValidator {
             if (StringUtils.isBlank(condition)) {
                 continue;
             }
-            SQLInjectionValidator.validateSQLInput(condition);
+            sqlValidator.validate("column", condition);
             List<String> operator = new ArrayList<>(Arrays.asList("=", ">", "<", "> =", "< =", "! =", "!=", ">=", "<="));
             condition = condition.trim().replace("( ", "(").replace(" )", ")").toLowerCase();
             for (String op : operator) {
@@ -111,17 +111,19 @@ public class ColumnValidator {
     private static Map<String, Set<String>> getTableColumnMap(String schema, Map<String, Set<String>> tableColumnAliasMap) {
         Map<String, Set<String>> tableColumnMap = new HashMap<>();
         schema = schema.substring(schema.indexOf("from"));
-        for (String alias : tableColumnAliasMap.keySet()) {
-            int index = schema.indexOf(" " + alias + " ");
+
+        for (Map.Entry<String, Set<String>> entry : tableColumnAliasMap.entrySet()) {
+            int index = schema.indexOf(" " + entry.getKey() + " ");
             if (index > -1) {
-                int startPos = 0;
+                int startPos;
                 startPos = schema.substring(0, index - 1).lastIndexOf(' ', index);
-                Set<String> columns = tableColumnAliasMap.get(alias);
+                Set<String> columns = entry.getValue();
                 tableColumnMap.put(schema.substring(startPos, index).trim(), columns);
             } else {
                 throw new SQLInjectionException();
             }
         }
+
         return tableColumnMap;
     }
 

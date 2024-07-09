@@ -38,6 +38,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Predicate;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.fineract.commands.domain.CommandWrapper;
@@ -45,6 +47,7 @@ import org.apache.fineract.commands.service.CommandWrapperBuilder;
 import org.apache.fineract.commands.service.PortfolioCommandSourceWritePlatformService;
 import org.apache.fineract.infrastructure.core.api.JsonCommand;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
+import org.apache.fineract.infrastructure.core.exception.ErrorHandler;
 import org.apache.fineract.infrastructure.core.exception.PlatformDataIntegrityException;
 import org.apache.fineract.infrastructure.core.serialization.DefaultToApiJsonSerializer;
 import org.apache.fineract.infrastructure.core.service.DateUtils;
@@ -61,6 +64,7 @@ import org.apache.fineract.interoperation.data.InteropKycResponseData;
 import org.apache.fineract.interoperation.data.InteropQuoteRequestData;
 import org.apache.fineract.interoperation.data.InteropQuoteResponseData;
 import org.apache.fineract.interoperation.data.InteropRequestData;
+import org.apache.fineract.interoperation.data.InteropTransactionData;
 import org.apache.fineract.interoperation.data.InteropTransactionRequestData;
 import org.apache.fineract.interoperation.data.InteropTransactionRequestResponseData;
 import org.apache.fineract.interoperation.data.InteropTransactionsData;
@@ -95,7 +99,6 @@ import org.apache.fineract.portfolio.paymenttype.domain.PaymentTypeRepository;
 import org.apache.fineract.portfolio.savings.SavingsAccountTransactionType;
 import org.apache.fineract.portfolio.savings.SavingsTransactionBooleanValues;
 import org.apache.fineract.portfolio.savings.domain.SavingsAccount;
-import org.apache.fineract.portfolio.savings.domain.SavingsAccountDomainService;
 import org.apache.fineract.portfolio.savings.domain.SavingsAccountRepository;
 import org.apache.fineract.portfolio.savings.domain.SavingsAccountTransaction;
 import org.apache.fineract.portfolio.savings.domain.SavingsAccountTransactionRepository;
@@ -103,22 +106,18 @@ import org.apache.fineract.portfolio.savings.domain.SavingsAccountTransactionSum
 import org.apache.fineract.portfolio.savings.domain.SavingsHelper;
 import org.apache.fineract.portfolio.savings.exception.InsufficientAccountBalanceException;
 import org.apache.fineract.portfolio.savings.exception.SavingsAccountNotFoundException;
+import org.apache.fineract.portfolio.savings.service.SavingsAccountDomainService;
 import org.apache.fineract.useradministration.domain.AppUser;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.orm.jpa.JpaSystemException;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-@Service
+@Slf4j
+@RequiredArgsConstructor
 public class InteropServiceImpl implements InteropService {
-
-    private static final Logger LOG = LoggerFactory.getLogger(InteropServiceImpl.class);
 
     private final PlatformSecurityContext securityContext;
     private final InteropDataValidator dataValidator;
@@ -142,33 +141,6 @@ public class InteropServiceImpl implements InteropService {
 
     private final DefaultToApiJsonSerializer<LoanAccountData> toApiJsonSerializer;
     private final DatabaseSpecificSQLGenerator sqlGenerator;
-
-    @Autowired
-    public InteropServiceImpl(PlatformSecurityContext securityContext, InteropDataValidator interopDataValidator,
-            SavingsAccountRepository savingsAccountRepository, SavingsAccountTransactionRepository savingsAccountTransactionRepository,
-            ApplicationCurrencyRepository applicationCurrencyRepository, NoteRepository noteRepository,
-            PaymentTypeRepository paymentTypeRepository, InteropIdentifierRepository identifierRepository, LoanRepository loanRepository,
-            SavingsHelper savingsHelper, SavingsAccountTransactionSummaryWrapper savingsAccountTransactionSummaryWrapper,
-            SavingsAccountDomainService savingsAccountService, final JdbcTemplate jdbcTemplate,
-            final PortfolioCommandSourceWritePlatformService commandsSourceWritePlatformService,
-            final DefaultToApiJsonSerializer<LoanAccountData> toApiJsonSerializer, DatabaseSpecificSQLGenerator sqlGenerator) {
-        this.securityContext = securityContext;
-        this.dataValidator = interopDataValidator;
-        this.savingsAccountRepository = savingsAccountRepository;
-        this.savingsAccountTransactionRepository = savingsAccountTransactionRepository;
-        this.currencyRepository = applicationCurrencyRepository;
-        this.noteRepository = noteRepository;
-        this.paymentTypeRepository = paymentTypeRepository;
-        this.identifierRepository = identifierRepository;
-        this.loanRepository = loanRepository;
-        this.savingsHelper = savingsHelper;
-        this.savingsAccountTransactionSummaryWrapper = savingsAccountTransactionSummaryWrapper;
-        this.savingsAccountService = savingsAccountService;
-        this.jdbcTemplate = jdbcTemplate;
-        this.commandsSourceWritePlatformService = commandsSourceWritePlatformService;
-        this.toApiJsonSerializer = toApiJsonSerializer;
-        this.sqlGenerator = sqlGenerator;
-    }
 
     private static final class KycMapper implements RowMapper<InteropKycData> {
 
@@ -243,11 +215,31 @@ public class InteropServiceImpl implements InteropService {
                 return true;
             }
 
-            java.time.LocalDateTime transactionDate = t.getTransactionLocalDate().atStartOfDay(ZoneId.systemDefault()).toLocalDateTime();
+            java.time.LocalDateTime transactionDate = t.getTransactionDate().atStartOfDay(ZoneId.systemDefault()).toLocalDateTime();
             return (transactionsTo == null || transactionsTo.compareTo(transactionDate) > 0) && (transactionsFrom == null
                     || transactionsFrom.compareTo(transactionDate.withHour(23).withMinute(59).withSecond(59)) <= 0);
         };
-        return InteropTransactionsData.build(savingsAccount, transFilter);
+        InteropTransactionsData interopTransactionsData = InteropTransactionsData.build(savingsAccount, transFilter);
+        for (InteropTransactionData interopTransactionData : interopTransactionsData.getTransactions()) {
+            final List<Note> transactionNotes = noteRepository
+                    .findBySavingsTransactionId(Long.valueOf(interopTransactionData.getTransactionId()));
+            StringBuilder sb = new StringBuilder();
+            for (final Note note : transactionNotes) {
+                String s = note.getNote();
+                if (s == null) {
+                    continue;
+                }
+                sb.append(s + " ");
+            }
+            if (sb.toString().length() > 0) {
+                String text = interopTransactionData.getNote() + " " + sb.toString();
+                if (text.length() > 500) {
+                    text = text.substring(0, 500);
+                }
+                interopTransactionData.updateNote(text);
+            }
+        }
+        return interopTransactionsData;
     }
 
     @NotNull
@@ -276,16 +268,15 @@ public class InteropServiceImpl implements InteropService {
     @Override
     public InteropIdentifierAccountResponseData registerAccountIdentifier(@NotNull InteropIdentifierType idType, @NotNull String idValue,
             String subIdOrType, @NotNull JsonCommand command) {
-
         InteropIdentifierRequestData request = dataValidator.validateAndParseCreateIdentifier(idType, idValue, subIdOrType, command);
         // TODO: error handling
         SavingsAccount savingsAccount = validateAndGetSavingAccount(request.getAccountId());
 
         try {
-            AppUser createdBy = getLoginUser();
+            AppUser createdBy = securityContext.authenticatedUser();
 
             InteropIdentifier identifier = new InteropIdentifier(savingsAccount, request.getIdType(), request.getIdValue(),
-                    request.getSubIdOrType(), createdBy.getUsername(), DateUtils.getLocalDateTimeOfTenant());
+                    request.getSubIdOrType(), createdBy.getUsername());
 
             identifierRepository.saveAndFlush(identifier);
 
@@ -401,10 +392,9 @@ public class InteropServiceImpl implements InteropService {
             PaymentDetail paymentDetail = instance(findPaymentType(), savingsAccount.getExternalId().getValue(), null, getRoutingCode(),
                     transferCode, null);
             SavingsAccountTransaction holdTransaction = SavingsAccountTransaction.holdAmount(savingsAccount, savingsAccount.office(),
-                    paymentDetail, transactionDate, Money.of(savingsAccount.getCurrency(), total), DateUtils.getLocalDateTimeOfTenant(),
-                    getLoginUser(), false);
+                    paymentDetail, transactionDate, Money.of(savingsAccount.getCurrency(), total), false);
             MonetaryCurrency accountCurrency = savingsAccount.getCurrency().copy();
-            holdTransaction.updateRunningBalance(
+            holdTransaction.setRunningBalance(
                     Money.of(accountCurrency, savingsAccount.getWithdrawableBalance().subtract(holdTransaction.getAmount())));
             holdTransaction.updateCumulativeBalanceAndDates(accountCurrency, transactionDate);
 
@@ -454,8 +444,8 @@ public class InteropServiceImpl implements InteropService {
             }
 
             if (holdTransaction.getReleaseIdOfHoldAmountTransaction() == null) {
-                SavingsAccountTransaction releaseTransaction = savingsAccountTransactionRepository.saveAndFlush(
-                        releaseAmount(holdTransaction, transactionDate, DateUtils.getLocalDateTimeOfSystem(), getLoginUser()));
+                SavingsAccountTransaction releaseTransaction = savingsAccountTransactionRepository
+                        .saveAndFlush(releaseAmount(holdTransaction, transactionDate));
                 holdTransaction.updateReleaseId(releaseTransaction.getId());
                 savingsAccount.releaseOnHoldAmount(holdTransaction.getAmount());
                 savingsAccount.addTransaction(releaseTransaction);
@@ -493,11 +483,10 @@ public class InteropServiceImpl implements InteropService {
         SavingsAccountTransaction holdTransaction = findTransaction(savingsAccount, request.getTransferCode(), AMOUNT_HOLD.getValue());
 
         if (holdTransaction != null && holdTransaction.getReleaseIdOfHoldAmountTransaction() == null) {
-            SavingsAccountTransaction releaseTransaction = releaseAmount(holdTransaction, transactionDate,
-                    DateUtils.getLocalDateTimeOfSystem(), getLoginUser());
+            SavingsAccountTransaction releaseTransaction = releaseAmount(holdTransaction, transactionDate);
             MonetaryCurrency accountCurrency = savingsAccount.getCurrency().copy();
-            releaseTransaction.updateRunningBalance(
-                    Money.of(accountCurrency, savingsAccount.getWithdrawableBalance().add(holdTransaction.getAmount())));
+            releaseTransaction
+                    .setRunningBalance(Money.of(accountCurrency, savingsAccount.getWithdrawableBalance().add(holdTransaction.getAmount())));
             releaseTransaction.updateCumulativeBalanceAndDates(accountCurrency, transactionDate);
             releaseTransaction = savingsAccountTransactionRepository.saveAndFlush(releaseTransaction);
             holdTransaction.updateReleaseId(releaseTransaction.getId());
@@ -652,25 +641,20 @@ public class InteropServiceImpl implements InteropService {
         return identifierRepository.findOneByTypeAndValueAndSubType(idType, idValue, subIdOrType);
     }
 
-    private AppUser getLoginUser() {
-        return securityContext.getAuthenticatedUserIfPresent();
-    }
-
     /*
      * Guaranteed to throw an exception no matter what the data integrity issue is.
      */
     private void handleInteropDataIntegrityIssues(InteropIdentifierType idType, String accountId, final Throwable realCause,
             final Exception dve) {
-
         if (realCause.getMessage().contains("uk_interop_identifier_account")) {
             throw new PlatformDataIntegrityException("error.msg.interop.duplicate.account.identifier",
                     "Account identifier of type `" + idType.name() + "' already exists for account with externalId `" + accountId + "`",
                     "idType", idType.name(), accountId);
         }
 
-        LOG.error("Error occured.", dve);
-        throw new PlatformDataIntegrityException("error.msg.interop.unknown.data.integrity.issue",
-                "Unknown data integrity issue with resource.");
+        log.error("Error occured.", dve);
+        throw ErrorHandler.getMappable(dve, "error.msg.interop.unknown.data.integrity.issue",
+                "Unknown data integrity issue with resource: " + realCause.getMessage());
     }
 
     @NotNull

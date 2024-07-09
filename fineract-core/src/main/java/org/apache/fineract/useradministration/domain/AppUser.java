@@ -57,7 +57,7 @@ import org.springframework.security.core.userdetails.User;
 
 @Entity
 @Table(name = "m_appuser", uniqueConstraints = @UniqueConstraint(columnNames = { "username" }, name = "username_org"))
-public class AppUser extends AbstractPersistableCustom implements PlatformUser {
+public class AppUser extends AbstractPersistableCustom<Long> implements PlatformUser {
 
     @Column(name = "email", nullable = false, length = 100)
     private String email;
@@ -655,6 +655,10 @@ public class AppUser extends AbstractPersistableCustom implements PlatformUser {
             final String authorizationMessage = "User has no authority to be a checker for: " + function;
             throw new NoAuthorizationException(authorizationMessage);
         }
+    }
+
+    public boolean isCheckerSuperUser() {
+        return hasPermissionTo("CHECKER_SUPER_USER");
     }
 
     public void validateHasDatatableReadPermission(final String datatable) {

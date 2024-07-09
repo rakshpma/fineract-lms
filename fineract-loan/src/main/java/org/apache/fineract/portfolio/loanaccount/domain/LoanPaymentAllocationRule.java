@@ -18,6 +18,7 @@
  */
 package org.apache.fineract.portfolio.loanaccount.domain;
 
+// TODO FINERACT-1932-Fineract modularization: Move to fineract-progressive-loan module after refactor of Loan and LoanTransaction classes
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
@@ -34,10 +35,10 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.apache.fineract.infrastructure.core.domain.AbstractAuditableWithUTCDateTimeCustom;
-import org.apache.fineract.portfolio.loanproduct.domain.AllocationTypeListConverter;
 import org.apache.fineract.portfolio.loanproduct.domain.FutureInstallmentAllocationRule;
 import org.apache.fineract.portfolio.loanproduct.domain.PaymentAllocationTransactionType;
 import org.apache.fineract.portfolio.loanproduct.domain.PaymentAllocationType;
+import org.apache.fineract.portfolio.loanproduct.domain.PaymentAllocationTypeListConverter;
 
 @Getter
 @Setter
@@ -46,7 +47,7 @@ import org.apache.fineract.portfolio.loanproduct.domain.PaymentAllocationType;
         @UniqueConstraint(columnNames = { "loan_id", "transaction_type" }, name = "uq_m_loan_payment_allocation_rule") })
 @AllArgsConstructor
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class LoanPaymentAllocationRule extends AbstractAuditableWithUTCDateTimeCustom {
+public class LoanPaymentAllocationRule extends AbstractAuditableWithUTCDateTimeCustom<Long> {
 
     @ManyToOne
     @JoinColumn(name = "loan_id", nullable = false)
@@ -56,7 +57,7 @@ public class LoanPaymentAllocationRule extends AbstractAuditableWithUTCDateTimeC
     @Enumerated(EnumType.STRING)
     private PaymentAllocationTransactionType transactionType;
 
-    @Convert(converter = AllocationTypeListConverter.class)
+    @Convert(converter = PaymentAllocationTypeListConverter.class)
     @Column(name = "allocation_types", nullable = false)
     private List<PaymentAllocationType> allocationTypes;
 

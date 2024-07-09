@@ -43,6 +43,7 @@ import org.apache.fineract.infrastructure.core.api.JsonCommand;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResultBuilder;
 import org.apache.fineract.infrastructure.core.domain.ExternalId;
+import org.apache.fineract.infrastructure.core.exception.ErrorHandler;
 import org.apache.fineract.infrastructure.core.exception.PlatformDataIntegrityException;
 import org.apache.fineract.infrastructure.core.serialization.FromJsonHelper;
 import org.apache.fineract.infrastructure.core.service.DateUtils;
@@ -59,10 +60,10 @@ import org.apache.fineract.organisation.office.domain.Office;
 import org.apache.fineract.organisation.office.domain.OfficeRepositoryWrapper;
 import org.apache.fineract.organisation.staff.domain.Staff;
 import org.apache.fineract.organisation.staff.domain.StaffRepositoryWrapper;
+import org.apache.fineract.portfolio.account.service.AccountNumberGenerator;
 import org.apache.fineract.portfolio.address.service.AddressWritePlatformService;
 import org.apache.fineract.portfolio.client.api.ClientApiConstants;
 import org.apache.fineract.portfolio.client.data.ClientDataValidator;
-import org.apache.fineract.portfolio.client.domain.AccountNumberGenerator;
 import org.apache.fineract.portfolio.client.domain.Client;
 import org.apache.fineract.portfolio.client.domain.ClientEnumerations;
 import org.apache.fineract.portfolio.client.domain.ClientNonPerson;
@@ -152,8 +153,8 @@ public class ClientWritePlatformServiceJpaRepositoryImpl implements ClientWriteP
         } catch (final JpaSystemException | DataIntegrityViolationException dve) {
             Throwable throwable = ExceptionUtils.getRootCause(dve.getCause());
             log.error("Error occured.", throwable);
-            throw new PlatformDataIntegrityException("error.msg.client.unknown.data.integrity.issue",
-                    "Unknown data integrity issue with resource.", dve);
+            throw ErrorHandler.getMappable(dve, "error.msg.client.unknown.data.integrity.issue",
+                    "Unknown data integrity issue with resource.");
         }
     }
 
@@ -161,9 +162,7 @@ public class ClientWritePlatformServiceJpaRepositoryImpl implements ClientWriteP
      * Guaranteed to throw an exception no matter what the data integrity issue is.
      */
     private void handleDataIntegrityIssues(final JsonCommand command, final Throwable realCause, final Exception dve) {
-
         if (realCause.getMessage().contains("external_id")) {
-
             final String externalId = command.stringValueOfParameterNamed("externalId");
             throw new PlatformDataIntegrityException("error.msg.client.duplicate.externalId",
                     "Client with externalId `" + externalId + "` already exists", "externalId", externalId);
@@ -178,8 +177,8 @@ public class ClientWritePlatformServiceJpaRepositoryImpl implements ClientWriteP
         }
 
         logAsErrorUnexpectedDataIntegrityException(dve);
-        throw new PlatformDataIntegrityException("error.msg.client.unknown.data.integrity.issue",
-                "Unknown data integrity issue with resource.");
+        throw ErrorHandler.getMappable(dve, "error.msg.client.unknown.data.integrity.issue",
+                "Unknown data integrity issue with resource: " + realCause.getMessage());
     }
 
     @Transactional
@@ -277,7 +276,7 @@ public class ClientWritePlatformServiceJpaRepositoryImpl implements ClientWriteP
             if (command.hasParameter(ClientApiConstants.submittedOnDateParamName)) {
                 submittedOnDate = command.localDateValueOfParameterNamed(ClientApiConstants.submittedOnDateParamName);
             }
-            if (active && submittedOnDate.isAfter(activationDate)) {
+            if (active && DateUtils.isAfter(submittedOnDate, activationDate)) {
                 submittedOnDate = activationDate;
             }
             final Long savingsAccountId = null;
@@ -295,7 +294,7 @@ public class ClientWritePlatformServiceJpaRepositoryImpl implements ClientWriteP
                 validateParentGroupRulesBeforeClientActivation(newClient);
                 runEntityDatatableCheck(newClient.getId(), newClient.getLegalForm());
                 final CommandWrapper commandWrapper = new CommandWrapperBuilder().activateClient(null).build();
-                rollbackTransaction = this.commandProcessingService.validateCommand(commandWrapper, currentUser);
+                rollbackTransaction = this.commandProcessingService.validateRollbackCommand(commandWrapper, currentUser);
             }
 
             this.clientRepository.saveAndFlush(newClient);
@@ -325,14 +324,13 @@ public class ClientWritePlatformServiceJpaRepositoryImpl implements ClientWriteP
             }
 
             if (command.parameterExists(ClientApiConstants.datatables)) {
-                this.entityDatatableChecksWritePlatformService.saveDatatables(StatusEnum.CREATE.getCode().longValue(),
-                        EntityTables.CLIENT.getName(), newClient.getId(), null,
-                        command.arrayOfParameterNamed(ClientApiConstants.datatables));
+                this.entityDatatableChecksWritePlatformService.saveDatatables(StatusEnum.CREATE.getValue(), EntityTables.CLIENT.getName(),
+                        newClient.getId(), null, command.arrayOfParameterNamed(ClientApiConstants.datatables));
             }
 
             legalForm = LegalForm.fromInt(newClient.getLegalForm());
             entityDatatableChecksWritePlatformService.runTheCheck(newClient.getId(), EntityTables.CLIENT.getName(),
-                    StatusEnum.CREATE.getCode(), EntityTables.CLIENT.getForeignKeyColumnNameOnDatatable(), legalForm.getLabel());
+                    StatusEnum.CREATE.getValue(), EntityTables.CLIENT.getForeignKeyColumnNameOnDatatable(), legalForm.getLabel());
             businessEventNotifierService.notifyPostBusinessEvent(new ClientCreateBusinessEvent(newClient));
             if (newClient.isActive()) {
                 businessEventNotifierService.notifyPostBusinessEvent(new ClientActivateBusinessEvent(newClient));
@@ -743,7 +741,7 @@ public class ClientWritePlatformServiceJpaRepositoryImpl implements ClientWriteP
         CommandProcessingResult commandProcessingResult = CommandProcessingResult.empty();
         if (client.isActive() && client.savingsProductId() != null) {
             SavingsAccountDataDTO savingsAccountDataDTO = new SavingsAccountDataDTO(client, null, client.savingsProductId(),
-                    client.getActivationLocalDate(), client.activatedBy(), fmt);
+                    client.getActivationDate(), client.activatedBy(), fmt);
             commandProcessingResult = this.savingsApplicationProcessWritePlatformService.createActiveApplication(savingsAccountDataDTO);
             if (commandProcessingResult.getSavingsId() != null) {
                 this.savingsRepositoryWrapper.findOneWithNotFoundDetection(commandProcessingResult.getSavingsId());
@@ -851,13 +849,13 @@ public class ClientWritePlatformServiceJpaRepositoryImpl implements ClientWriteP
                 throw new InvalidClientStateTransitionException("close", "is.under.transfer", errorMessage);
             }
 
-            if (client.isNotPending() && client.getActivationLocalDate() != null && client.getActivationLocalDate().isAfter(closureDate)) {
+            if (client.isNotPending() && DateUtils.isAfter(client.getActivationDate(), closureDate)) {
                 final String errorMessage = "The client closureDate cannot be before the client ActivationDate.";
                 throw new InvalidClientStateTransitionException("close", "date.cannot.before.client.actvation.date", errorMessage,
-                        closureDate, client.getActivationLocalDate());
+                        closureDate, client.getActivationDate());
             }
             final LegalForm legalForm = LegalForm.fromInt(client.getLegalForm());
-            entityDatatableChecksWritePlatformService.runTheCheck(clientId, EntityTables.CLIENT.getName(), StatusEnum.CLOSE.getCode(),
+            entityDatatableChecksWritePlatformService.runTheCheck(clientId, EntityTables.CLIENT.getName(), StatusEnum.CLOSE.getValue(),
                     EntityTables.CLIENT.getForeignKeyColumnNameOnDatatable(), legalForm.getLabel());
 
             final List<Loan> clientLoans = this.loanRepositoryWrapper.findLoanByClientId(clientId);
@@ -866,7 +864,7 @@ public class ClientWritePlatformServiceJpaRepositoryImpl implements ClientWriteP
                 if (loanStatus.isOpen() || loanStatus.isPendingApproval() || loanStatus.isAwaitingDisbursal()) {
                     final String errorMessage = "Client cannot be closed because of non-closed loans.";
                     throw new InvalidClientStateTransitionException("close", "loan.non-closed", errorMessage);
-                } else if (loanStatus.isClosed() && loan.getClosedOnDate().isAfter(closureDate)) {
+                } else if (loanStatus.isClosed() && DateUtils.isAfter(loan.getClosedOnDate(), closureDate)) {
                     final String errorMessage = "The client closureDate cannot be before the loan closedOnDate.";
                     throw new InvalidClientStateTransitionException("close", "date.cannot.before.loan.closed.date", errorMessage,
                             closureDate, loan.getClosedOnDate());
@@ -956,7 +954,7 @@ public class ClientWritePlatformServiceJpaRepositoryImpl implements ClientWriteP
 
     private void runEntityDatatableCheck(final Long clientId, final Integer legalFormId) {
         final LegalForm legalForm = LegalForm.fromInt(legalFormId);
-        entityDatatableChecksWritePlatformService.runTheCheck(clientId, EntityTables.CLIENT.getName(), StatusEnum.ACTIVATE.getCode(),
+        entityDatatableChecksWritePlatformService.runTheCheck(clientId, EntityTables.CLIENT.getName(), StatusEnum.ACTIVATE.getValue(),
                 EntityTables.CLIENT.getForeignKeyColumnNameOnDatatable(), legalForm.getLabel());
     }
 
@@ -976,7 +974,7 @@ public class ClientWritePlatformServiceJpaRepositoryImpl implements ClientWriteP
             final String errorMessage = "Only clients pending activation may be withdrawn.";
             throw new InvalidClientStateTransitionException("rejection", "on.account.not.in.pending.activation.status", errorMessage,
                     rejectionDate, client.getSubmittedOnDate());
-        } else if (client.getSubmittedOnDate().isAfter(rejectionDate)) {
+        } else if (DateUtils.isAfter(client.getSubmittedOnDate(), rejectionDate)) {
             final String errorMessage = "The client rejection date cannot be before the client submitted date.";
             throw new InvalidClientStateTransitionException("rejection", "date.cannot.before.client.submitted.date", errorMessage,
                     rejectionDate, client.getSubmittedOnDate());
@@ -1008,7 +1006,7 @@ public class ClientWritePlatformServiceJpaRepositoryImpl implements ClientWriteP
             final String errorMessage = "Only clients pending activation may be withdrawn.";
             throw new InvalidClientStateTransitionException("withdrawal", "on.account.not.in.pending.activation.status", errorMessage,
                     withdrawalDate, client.getSubmittedOnDate());
-        } else if (client.getSubmittedOnDate().isAfter(withdrawalDate)) {
+        } else if (DateUtils.isAfter(client.getSubmittedOnDate(), withdrawalDate)) {
             final String errorMessage = "The client withdrawal date cannot be before the client submitted date.";
             throw new InvalidClientStateTransitionException("withdrawal", "date.cannot.before.client.submitted.date", errorMessage,
                     withdrawalDate, client.getSubmittedOnDate());
@@ -1034,7 +1032,7 @@ public class ClientWritePlatformServiceJpaRepositoryImpl implements ClientWriteP
         if (!client.isClosed()) {
             final String errorMessage = "only closed clients may be reactivated.";
             throw new InvalidClientStateTransitionException("reactivation", "on.nonclosed.account", errorMessage);
-        } else if (client.getClosureDate().isAfter(reactivateDate)) {
+        } else if (DateUtils.isAfter(client.getClosureDate(), reactivateDate)) {
             final String errorMessage = "The client reactivation date cannot be before the client closed date.";
             throw new InvalidClientStateTransitionException("reactivation", "date.cannot.before.client.closed.date", errorMessage,
                     reactivateDate, client.getClosureDate());
@@ -1060,7 +1058,7 @@ public class ClientWritePlatformServiceJpaRepositoryImpl implements ClientWriteP
         if (!client.isRejected()) {
             final String errorMessage = "only rejected clients may be reactivated.";
             throw new InvalidClientStateTransitionException("undorejection", "on.nonrejected.account", errorMessage);
-        } else if (client.getRejectedDate().isAfter(undoRejectDate)) {
+        } else if (DateUtils.isAfter(client.getRejectedDate(), undoRejectDate)) {
             final String errorMessage = "The client reactivation date cannot be before the client rejected date.";
             throw new InvalidClientStateTransitionException("reopened", "date.cannot.before.client.rejected.date", errorMessage,
                     undoRejectDate, client.getRejectedDate());
@@ -1088,7 +1086,7 @@ public class ClientWritePlatformServiceJpaRepositoryImpl implements ClientWriteP
         if (!client.isWithdrawn()) {
             final String errorMessage = "only withdrawal clients may be reactivated.";
             throw new InvalidClientStateTransitionException("undoWithdrawal", "on.nonwithdrawal.account", errorMessage);
-        } else if (client.getWithdrawalDate().isAfter(undoWithdrawalDate)) {
+        } else if (DateUtils.isAfter(client.getWithdrawalDate(), undoWithdrawalDate)) {
             final String errorMessage = "The client reactivation date cannot be before the client withdrawal date.";
             throw new InvalidClientStateTransitionException("reopened", "date.cannot.before.client.withdrawal.date", errorMessage,
                     undoWithdrawalDate, client.getWithdrawalDate());

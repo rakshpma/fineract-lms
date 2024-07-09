@@ -200,11 +200,7 @@ public final class LoanSchedulePeriodData {
         this.totalOutstandingForPeriod = this.feeChargesOutstanding;
         this.totalActualCostOfLoanForPeriod = this.feeChargesDue;
         this.totalInstallmentAmountForPeriod = null;
-        if (dueDate.isBefore(DateUtils.getBusinessLocalDate())) {
-            this.totalOverdue = this.totalOutstandingForPeriod;
-        } else {
-            this.totalOverdue = null;
-        }
+        this.totalOverdue = DateUtils.isBeforeBusinessDate(dueDate) ? this.totalOutstandingForPeriod : null;
         this.totalCredits = BigDecimal.ZERO;
         this.downPaymentPeriod = false;
     }
@@ -263,12 +259,7 @@ public final class LoanSchedulePeriodData {
         this.totalOutstandingForPeriod = totalDueForPeriod;
         this.totalActualCostOfLoanForPeriod = interestDueOnPrincipalOutstanding.add(feeChargesDueForPeriod);
         this.totalInstallmentAmountForPeriod = totalInstallmentAmountForPeriod;
-
-        if (dueDate.isBefore(DateUtils.getBusinessLocalDate())) {
-            this.totalOverdue = this.totalOutstandingForPeriod;
-        } else {
-            this.totalOverdue = null;
-        }
+        this.totalOverdue = DateUtils.isBeforeBusinessDate(dueDate) ? this.totalOutstandingForPeriod : null;
         this.totalCredits = BigDecimal.ZERO;
         this.downPaymentPeriod = false;
     }
@@ -284,7 +275,7 @@ public final class LoanSchedulePeriodData {
         this.dueDate = dueDate;
         this.obligationsMetOnDate = null;
         this.complete = null;
-        this.daysInPeriod = 1;
+        this.daysInPeriod = 1; // TODO: check this may should be 0 or somewhere else should be 1?
         this.principalDisbursed = null;
         this.principalOriginalDue = principalDue;
         this.principalDue = principalOriginalDue;
@@ -322,12 +313,7 @@ public final class LoanSchedulePeriodData {
         this.totalOutstandingForPeriod = totalDueForPeriod;
         this.totalActualCostOfLoanForPeriod = null;
         this.totalInstallmentAmountForPeriod = totalDueForPeriod;
-
-        if (dueDate.isBefore(DateUtils.getBusinessLocalDate())) {
-            this.totalOverdue = this.totalOutstandingForPeriod;
-        } else {
-            this.totalOverdue = null;
-        }
+        this.totalOverdue = DateUtils.isBeforeBusinessDate(dueDate) ? this.totalOutstandingForPeriod : null;
         this.totalCredits = BigDecimal.ZERO;
         this.downPaymentPeriod = true;
     }
@@ -396,12 +382,7 @@ public final class LoanSchedulePeriodData {
         this.totalOutstandingForPeriod = totalOutstanding;
         this.totalActualCostOfLoanForPeriod = totalActualCostOfLoanForPeriod;
         this.totalInstallmentAmountForPeriod = totalInstallmentAmountForPeriod;
-
-        if (dueDate.isBefore(DateUtils.getBusinessLocalDate())) {
-            this.totalOverdue = this.totalOutstandingForPeriod;
-        } else {
-            this.totalOverdue = null;
-        }
+        this.totalOverdue = DateUtils.isBeforeBusinessDate(dueDate) ? this.totalOutstandingForPeriod : null;
         this.totalCredits = totalCredits;
         this.downPaymentPeriod = isDownPayment;
     }

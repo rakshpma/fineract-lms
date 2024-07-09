@@ -47,6 +47,7 @@ import org.apache.fineract.infrastructure.event.external.repository.ExternalEven
 import org.apache.fineract.infrastructure.event.external.repository.domain.ExternalEventView;
 import org.apache.fineract.infrastructure.event.external.service.message.MessageFactory;
 import org.apache.fineract.infrastructure.event.external.service.support.ByteBufferConverter;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -97,6 +98,11 @@ class SendAsynchronousEventsTaskletTest {
                 configurationDomainService);
     }
 
+    @AfterEach
+    public void tearDown() {
+        ThreadLocalContextUtil.reset();
+    }
+
     private void configureExternalEventsProducerReadBatchSizeProperty() {
         FineractProperties.FineractEventsProperties eventsProperties = new FineractProperties.FineractEventsProperties();
         FineractProperties.FineractExternalEventsProperties externalProperties = new FineractProperties.FineractExternalEventsProperties();
@@ -104,6 +110,7 @@ class SendAsynchronousEventsTaskletTest {
         FineractProperties.FineractExternalEventsProducerJmsProperties externalEventsProducerJMSProperties = new FineractProperties.FineractExternalEventsProducerJmsProperties();
         externalEventsProducerJMSProperties.setEnabled(true);
         externalProperties.setEnabled(true);
+        externalProperties.setPartitionSize(5000);
         externalEventsProducerProperties.setJms(externalEventsProducerJMSProperties);
         externalProperties.setProducer(externalEventsProducerProperties);
         eventsProperties.setExternal(externalProperties);

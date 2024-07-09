@@ -18,8 +18,8 @@
  */
 
 plugins {
-    id 'com.gradle.enterprise' version '3.13.4'
-    id 'com.gradle.common-custom-user-data-gradle-plugin' version '1.11'
+    id 'com.gradle.enterprise' version '3.16.2'
+    id 'com.gradle.common-custom-user-data-gradle-plugin' version '1.12.1'
 }
 
 def isCI = System.getenv('JENKINS_URL') != null
@@ -49,9 +49,17 @@ buildCache {
 
 rootProject.name='fineract'
 include ':fineract-core'
+include ':fineract-accounting'
 include ':fineract-provider'
+include ':fineract-branch'
+include ':fineract-document'
 include ':fineract-investor'
+include ':fineract-rates'
+include ':fineract-charge'
+include ':fineract-tax'
 include ':fineract-loan'
+include ':fineract-savings'
+include ':fineract-report'
 include ':fineract-war'
 include ':integration-tests'
 include ':twofactor-tests'
@@ -59,6 +67,9 @@ include ':oauth2-tests'
 include ':fineract-client'
 include ':fineract-doc'
 include ':fineract-avro-schemas'
+include ':fineract-e2e-tests-core'
+include ':fineract-e2e-tests-runner'
+include 'fineract-progressive-loan'
 // NOTE: custom Docker image with all custom modules included
 include ':custom:docker'
 // NOTE: dynamically load custom modules with pattern "custom -> company -> category -> module"

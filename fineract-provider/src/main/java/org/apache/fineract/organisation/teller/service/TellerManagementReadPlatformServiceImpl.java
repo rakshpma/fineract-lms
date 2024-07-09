@@ -56,10 +56,8 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
-import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
-@Service
 @RequiredArgsConstructor
 public class TellerManagementReadPlatformServiceImpl implements TellerManagementReadPlatformService {
 
@@ -487,9 +485,9 @@ public class TellerManagementReadPlatformServiceImpl implements TellerManagement
                 + " and renum.enum_value in ('PAY_CHARGE', 'WAIVE_CHARGE') "
                 + " and (cli_txn.payment_detail_id IS NULL OR payType.is_cash_payment = true) ) " + " order by created_date ";
 
-        if (searchParameters.isLimited()) {
+        if (searchParameters.hasLimit()) {
             sql += " ";
-            if (searchParameters.isOffset()) {
+            if (searchParameters.hasOffset()) {
                 sql += sqlGenerator.limit(searchParameters.getLimit(), searchParameters.getOffset());
             } else {
                 sql += sqlGenerator.limit(searchParameters.getLimit());

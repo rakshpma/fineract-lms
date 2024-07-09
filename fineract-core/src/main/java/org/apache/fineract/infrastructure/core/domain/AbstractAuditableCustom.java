@@ -39,7 +39,7 @@ import org.springframework.data.jpa.domain.AbstractAuditable;
  *            the type of the auditing type's identifier
  */
 @MappedSuperclass
-public abstract class AbstractAuditableCustom extends AbstractPersistableCustom implements Auditable<Long, Long, LocalDateTime> {
+public abstract class AbstractAuditableCustom extends AbstractPersistableCustom<Long> implements Auditable<Long, Long, LocalDateTime> {
 
     private static final long serialVersionUID = 141481953116476081L;
 
@@ -67,7 +67,7 @@ public abstract class AbstractAuditableCustom extends AbstractPersistableCustom 
 
     @Override
     public Optional<LocalDateTime> getCreatedDate() {
-        return null == this.createdDate ? Optional.empty() : Optional.of(this.createdDate);
+        return Optional.ofNullable(this.createdDate);
     }
 
     @Override
@@ -87,7 +87,7 @@ public abstract class AbstractAuditableCustom extends AbstractPersistableCustom 
 
     @Override
     public Optional<LocalDateTime> getLastModifiedDate() {
-        return null == this.lastModifiedDate ? Optional.empty() : Optional.of(this.lastModifiedDate);
+        return Optional.ofNullable(this.lastModifiedDate);
     }
 
     @Override

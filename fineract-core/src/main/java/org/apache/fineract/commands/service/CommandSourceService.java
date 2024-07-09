@@ -21,15 +21,20 @@ package org.apache.fineract.commands.service;
 import static org.apache.fineract.commands.domain.CommandProcessingResultType.UNDER_PROCESSING;
 
 import lombok.RequiredArgsConstructor;
-import org.apache.fineract.batch.exception.ErrorHandler;
 import org.apache.fineract.batch.exception.ErrorInfo;
 import org.apache.fineract.commands.domain.CommandSource;
 import org.apache.fineract.commands.domain.CommandSourceRepository;
 import org.apache.fineract.commands.domain.CommandWrapper;
 import org.apache.fineract.commands.exception.CommandNotFoundException;
+import org.apache.fineract.commands.exception.RollbackTransactionNotApprovedException;
+import org.apache.fineract.commands.handler.NewCommandSourceHandler;
 import org.apache.fineract.infrastructure.core.api.JsonCommand;
+import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
+import org.apache.fineract.infrastructure.core.exception.ErrorHandler;
+import org.apache.fineract.infrastructure.core.exception.IdempotentCommandProcessUnderProcessingException;
 import org.apache.fineract.useradministration.domain.AppUser;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.orm.jpa.JpaSystemException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Propagation;
@@ -61,11 +66,16 @@ public class CommandSourceService {
 
     @NotNull
     private CommandSource saveInitial(CommandWrapper wrapper, JsonCommand jsonCommand, AppUser maker, String idempotencyKey) {
-        CommandSource initialCommandSource = getInitialCommandSource(wrapper, jsonCommand, maker, idempotencyKey);
-        if (initialCommandSource.getCommandJson() == null) {
-            initialCommandSource.setCommandJson("{}");
+        try {
+            CommandSource initialCommandSource = getInitialCommandSource(wrapper, jsonCommand, maker, idempotencyKey);
+            return commandSourceRepository.saveAndFlush(initialCommandSource);
+        } catch (JpaSystemException jse) {
+            final String message = (jse.getRootCause() != null) ? jse.getRootCause().getMessage() : null;
+            if (message != null && message.toUpperCase().contains("UNIQUE_PORTFOLIO_COMMAND_SOURCE")) {
+                throw new IdempotentCommandProcessUnderProcessingException(wrapper, idempotencyKey, jse);
+            }
+            throw jse;
         }
-        return commandSourceRepository.saveAndFlush(initialCommandSource);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.REPEATABLE_READ)
@@ -84,27 +94,38 @@ public class CommandSourceService {
     }
 
     public ErrorInfo generateErrorInfo(Throwable t) {
-        return errorHandler.handle(errorHandler.getMappable(t));
+        return errorHandler.handle(ErrorHandler.getMappable(t));
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public CommandSource getCommandSource(Long commandSourceId) {
         return commandSourceRepository.findById(commandSourceId).orElseThrow(() -> new CommandNotFoundException(commandSourceId));
     }
 
+    @Transactional(propagation = Propagation.REQUIRED)
     public CommandSource findCommandSource(CommandWrapper wrapper, String idempotencyKey) {
         return commandSourceRepository.findByActionNameAndEntityNameAndIdempotencyKey(wrapper.actionName(), wrapper.entityName(),
                 idempotencyKey);
     }
 
-    private CommandSource getInitialCommandSource(CommandWrapper wrapper, JsonCommand jsonCommand, AppUser maker, String idempotencyKey) {
-        CommandSource commandSourceResult;
-        if (jsonCommand.commandId() != null) {
-            commandSourceResult = commandSourceRepository.findById(jsonCommand.commandId())
-                    .orElseThrow(() -> new CommandNotFoundException(jsonCommand.commandId()));
-            commandSourceResult.markAsChecked(maker);
-        } else {
-            commandSourceResult = CommandSource.fullEntryFrom(wrapper, jsonCommand, maker, idempotencyKey, UNDER_PROCESSING.getValue());
+    public CommandSource getInitialCommandSource(CommandWrapper wrapper, JsonCommand jsonCommand, AppUser maker, String idempotencyKey) {
+        CommandSource commandSourceResult = CommandSource.fullEntryFrom(wrapper, jsonCommand, maker, idempotencyKey,
+                UNDER_PROCESSING.getValue());
+        if (commandSourceResult.getCommandJson() == null) {
+            commandSourceResult.setCommandJson("{}");
         }
         return commandSourceResult;
+    }
+
+    @Transactional
+    public CommandProcessingResult processCommand(NewCommandSourceHandler handler, JsonCommand command, CommandSource commandSource,
+            AppUser user, boolean isApprovedByChecker, boolean isMakerChecker) {
+        final CommandProcessingResult result = handler.processCommand(command);
+        boolean isRollback = !isApprovedByChecker && !user.isCheckerSuperUser() && (isMakerChecker || result.isRollbackTransaction());
+        if (isRollback) {
+            commandSource.markAsAwaitingApproval();
+            throw new RollbackTransactionNotApprovedException(commandSource.getId(), commandSource.getResourceId());
+        }
+        return result;
     }
 }

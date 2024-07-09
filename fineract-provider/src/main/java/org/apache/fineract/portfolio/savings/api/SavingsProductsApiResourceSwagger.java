@@ -226,88 +226,34 @@ final class SavingsProductsApiResourceSwagger {
 
         private GetSavingsProductsProductIdResponse() {}
 
+        static final class GetSavingsProductsGlAccount {
+
+            private GetSavingsProductsGlAccount() {}
+
+            @Schema(example = "12")
+            public Integer id;
+            @Schema(example = "savings control")
+            public String name;
+            @Schema(example = "2000001")
+            public String glCode;
+        }
+
         static final class GetSavingsProductsAccountingMappings {
 
             private GetSavingsProductsAccountingMappings() {}
 
-            static final class GetSavingsProductsSavingsReferenceAccount {
-
-                private GetSavingsProductsSavingsReferenceAccount() {}
-
-                @Schema(example = "12")
-                public Integer id;
-                @Schema(example = "savings ref")
-                public String name;
-                @Schema(example = "20")
-                public Integer glCode;
-            }
-
-            static final class GetSavingsProductsIncomeFromFeeAccount {
-
-                private GetSavingsProductsIncomeFromFeeAccount() {}
-
-                @Schema(example = "16")
-                public Integer id;
-                @Schema(example = "income from savings fee")
-                public String name;
-                @Schema(example = "24")
-                public Integer glCode;
-            }
-
-            static final class GetSavingsProductsIncomeFromPenaltyAccount {
-
-                private GetSavingsProductsIncomeFromPenaltyAccount() {}
-
-                @Schema(example = "17")
-                public Integer id;
-                @Schema(example = "income from sav penalties")
-                public String name;
-                @Schema(example = "25")
-                public Integer glCode;
-            }
-
-            static final class GetSavingsProductsInterestOnSavingsAccount {
-
-                private GetSavingsProductsInterestOnSavingsAccount() {}
-
-                @Schema(example = "15")
-                public Integer id;
-                @Schema(example = "interest on savings")
-                public String name;
-                @Schema(example = "23")
-                public Integer glCode;
-            }
-
-            static final class GetSavingsProductsSavingsControlAccount {
-
-                private GetSavingsProductsSavingsControlAccount() {}
-
-                @Schema(example = "13")
-                public Integer id;
-                @Schema(example = "savings ref tool kit")
-                public String name;
-                @Schema(example = "21")
-                public Integer glCode;
-            }
-
-            static final class GetSavingsProductsTransfersInSuspenseAccount {
-
-                private GetSavingsProductsTransfersInSuspenseAccount() {}
-
-                @Schema(example = "14")
-                public Integer id;
-                @Schema(example = "saving transfers")
-                public String name;
-                @Schema(example = "22")
-                public Integer glCode;
-            }
-
-            public GetSavingsProductsSavingsReferenceAccount savingsReferenceAccount;
-            public GetSavingsProductsIncomeFromFeeAccount incomeFromFeeAccount;
-            public GetSavingsProductsIncomeFromPenaltyAccount incomeFromPenaltyAccount;
-            public GetSavingsProductsInterestOnSavingsAccount interestOnSavingsAccount;
-            public GetSavingsProductsSavingsControlAccount savingsControlAccount;
-            public GetSavingsProductsTransfersInSuspenseAccount transfersInSuspenseAccount;
+            public GetSavingsProductsGlAccount savingsReferenceAccount;
+            public GetSavingsProductsGlAccount overdraftPortfolioControl;
+            public GetSavingsProductsGlAccount feeReceivableAccount;
+            public GetSavingsProductsGlAccount penaltyReceivableAccount;
+            public GetSavingsProductsGlAccount incomeFromFeeAccount;
+            public GetSavingsProductsGlAccount incomeFromPenaltyAccount;
+            public GetSavingsProductsGlAccount incomeFromInterest;
+            public GetSavingsProductsGlAccount interestOnSavingsAccount;
+            public GetSavingsProductsGlAccount writeOffAccount;
+            public GetSavingsProductsGlAccount savingsControlAccount;
+            public GetSavingsProductsGlAccount transfersInSuspenseAccount;
+            public GetSavingsProductsGlAccount interestPayableAccount;
         }
 
         static final class GetSavingsProductsPaymentChannelToFundSourceMappings {
@@ -333,7 +279,7 @@ final class SavingsProductsApiResourceSwagger {
                 @Schema(example = "savings ref")
                 public String name;
                 @Schema(example = "20")
-                public Integer glCode;
+                public String glCode;
             }
 
             public GetSavingsProductsPaymentType paymentType;
@@ -367,7 +313,7 @@ final class SavingsProductsApiResourceSwagger {
                 @Schema(example = "income from savings fee")
                 public String name;
                 @Schema(example = "24")
-                public Integer glCode;
+                public String glCode;
             }
 
             public GetSavingsProductsFeeToIncomeAccountMappingsCharge charge;
@@ -393,7 +339,7 @@ final class SavingsProductsApiResourceSwagger {
             }
 
             public GetSavingsProductsPenaltyToIncomeAccountMappingsCharge charge;
-            public GetSavingsProductsAccountingMappings.GetSavingsProductsIncomeFromPenaltyAccount incomeAccount;
+            public GetSavingsProductsGlAccount incomeAccount;
         }
 
         @Schema(example = "1")
@@ -524,7 +470,7 @@ final class SavingsProductsApiResourceSwagger {
                 @Schema(example = "Savings Control")
                 public String name;
                 @Schema(example = "50001")
-                public Integer glCode;
+                public String glCode;
                 @Schema(example = "false")
                 public Boolean disabled;
                 @Schema(example = "true")
@@ -562,7 +508,7 @@ final class SavingsProductsApiResourceSwagger {
                 @Schema(example = "Cash")
                 public String name;
                 @Schema(example = "100001")
-                public Integer glCode;
+                public String glCode;
                 @Schema(example = "false")
                 public Boolean disabled;
                 @Schema(example = "true")
@@ -593,7 +539,7 @@ final class SavingsProductsApiResourceSwagger {
                 @Schema(example = "Write Off Expenses")
                 public String name;
                 @Schema(example = "60001")
-                public Integer glCode;
+                public String glCode;
                 @Schema(example = "false")
                 public Boolean disabled;
                 @Schema(example = "true")
@@ -624,7 +570,7 @@ final class SavingsProductsApiResourceSwagger {
                 @Schema(example = "income from interest")
                 public String name;
                 @Schema(example = "40001")
-                public Integer glCode;
+                public String glCode;
                 @Schema(example = "false")
                 public Boolean disabled;
                 @Schema(example = "true")

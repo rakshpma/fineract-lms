@@ -34,6 +34,7 @@ import org.apache.fineract.infrastructure.core.domain.ActionContext;
 import org.apache.fineract.infrastructure.core.domain.FineractPlatformTenant;
 import org.apache.fineract.infrastructure.core.exceptionmapper.IdempotentCommandExceptionMapper;
 import org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -48,13 +49,18 @@ public class IdempotencyCommandProcessFailedExceptionTest {
         ThreadLocalContextUtil.setBusinessDates(new HashMap<>(Map.of(BusinessDateType.BUSINESS_DATE, actualDate)));
     }
 
+    @AfterEach
+    public void tearDown() {
+        ThreadLocalContextUtil.reset();
+    }
+
     @Test
     public void testInconsistentStatus() {
         IdempotentCommandExceptionMapper mapper = new IdempotentCommandExceptionMapper();
         CommandWrapper command = new CommandWrapper(null, null, null, null, null, null, null, null, null, null, null, null, null, null,
                 null, null, null, null);
         CommandSource source = CommandSource.fullEntryFrom(command, JsonCommand.from("{}"), null, "dummy-key", null);
-        IdempotentCommandProcessFailedException exception = new IdempotentCommandProcessFailedException(command, source);
+        IdempotentCommandProcessFailedException exception = new IdempotentCommandProcessFailedException(command, null, source);
         Response result = mapper.toResponse(exception);
         assertEquals(500, result.getStatus());
         assertEquals("true", result.getHeaderString(IDEMPOTENT_CACHE_HEADER));

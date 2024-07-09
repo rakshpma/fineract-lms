@@ -38,6 +38,7 @@ import java.util.Optional;
 import okhttp3.logging.HttpLoggingInterceptor.Level;
 import org.apache.fineract.client.util.Calls;
 import org.apache.fineract.client.util.FineractClient;
+import org.apache.fineract.integrationtests.ConfigProperties;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestInstance.Lifecycle;
@@ -62,14 +63,23 @@ public abstract class IntegrationTest {
 
     protected FineractClient fineract() {
         if (fineract == null) {
-            String url = System.getProperty("fineract.it.url", "https://localhost:8443/fineract-provider/api/");
-            // insecure(true) should *ONLY* ever be used for https://localhost:8443, NOT in real clients!!
-            FineractClient.Builder builder = FineractClient.builder().insecure(true).baseURL(url).tenant("default")
-                    .basicAuth("mifos", "password").logging(Level.NONE);
-            customizeFineractClient(builder);
-            fineract = builder.build();
+            fineract = newFineract(ConfigProperties.Backend.USERNAME, ConfigProperties.Backend.PASSWORD);
         }
         return fineract;
+    }
+
+    private String buildURI() {
+        return ConfigProperties.Backend.PROTOCOL + "://" + ConfigProperties.Backend.HOST + ":" + ConfigProperties.Backend.PORT
+                + "/fineract-provider/api/";
+    }
+
+    protected FineractClient newFineract(String username, String password) {
+        String url = System.getProperty("fineract.it.url", buildURI());
+        // insecure(true) should *ONLY* ever be used for https://localhost:8443, NOT in real clients!!
+        FineractClient.Builder builder = FineractClient.builder().insecure(true).baseURL(url).tenant(ConfigProperties.Backend.TENANT)
+                .basicAuth(username, password).logging(Level.NONE);
+        customizeFineractClient(builder);
+        return builder.build();
     }
 
     /**

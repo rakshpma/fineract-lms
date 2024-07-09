@@ -38,6 +38,7 @@ import org.apache.fineract.infrastructure.configuration.domain.ConfigurationDoma
 import org.apache.fineract.infrastructure.core.api.JsonCommand;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResultBuilder;
+import org.apache.fineract.infrastructure.core.exception.ErrorHandler;
 import org.apache.fineract.infrastructure.core.exception.PlatformDataIntegrityException;
 import org.apache.fineract.infrastructure.core.serialization.FromJsonHelper;
 import org.apache.fineract.portfolio.calendar.domain.Calendar;
@@ -99,7 +100,7 @@ public class MeetingWritePlatformServiceJpaRepositoryImpl implements MeetingWrit
                     isSkipRepaymentOnFirstMonth = true;
                 }
                 if (isSkipRepaymentOnFirstMonth) {
-                    numberOfDays = configurationDomainService.retreivePeroidInNumberOfDaysForSkipMeetingDate().intValue();
+                    numberOfDays = configurationDomainService.retreivePeriodInNumberOfDaysForSkipMeetingDate().intValue();
                 }
             }
             final Meeting newMeeting = Meeting.createNew(calendarInstance, meetingDate, isTransactionDateOnNonMeetingDate,
@@ -228,7 +229,7 @@ public class MeetingWritePlatformServiceJpaRepositoryImpl implements MeetingWrit
         if (isSkipRepaymentOnFirstMonthEnabled) {
             if (calendarInstance != null) {
                 isSkipRepaymentOnFirstMonth = true;
-                numberOfDays = configurationDomainService.retreivePeroidInNumberOfDaysForSkipMeetingDate().intValue();
+                numberOfDays = configurationDomainService.retreivePeriodInNumberOfDaysForSkipMeetingDate().intValue();
             }
         }
         final Meeting meetingForUpdate = this.meetingRepositoryWrapper.findOneWithNotFoundDetection(command.entityId());
@@ -284,7 +285,7 @@ public class MeetingWritePlatformServiceJpaRepositoryImpl implements MeetingWrit
                     "A meeting with date '" + meetingDate + "' already exists", meetingDateParamName, meetingDate);
         }
 
-        throw new PlatformDataIntegrityException("error.msg.meeting.unknown.data.integrity.issue",
+        throw ErrorHandler.getMappable(dve, "error.msg.meeting.unknown.data.integrity.issue",
                 "Unknown data integrity issue with resource: " + realCause.getMessage());
     }
 
@@ -304,7 +305,7 @@ public class MeetingWritePlatformServiceJpaRepositoryImpl implements MeetingWrit
             if (isSkipRepaymentOnFirstMonthEnabled) {
                 isSkipRepaymentOnFirstMonth = true;
                 if (isSkipRepaymentOnFirstMonth) {
-                    numberOfDays = configurationDomainService.retreivePeroidInNumberOfDaysForSkipMeetingDate().intValue();
+                    numberOfDays = configurationDomainService.retreivePeriodInNumberOfDaysForSkipMeetingDate().intValue();
                 }
             }
             // create new meeting

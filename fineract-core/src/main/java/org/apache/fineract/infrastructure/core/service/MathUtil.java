@@ -450,4 +450,31 @@ public final class MathUtil {
         }
         return percentageOf;
     }
+
+    /**
+     * Calculate percentage of a value
+     *
+     * @param value
+     * @param percentage
+     * @param mc
+     * @return
+     */
+    public static BigDecimal percentageOf(final BigDecimal value, final BigDecimal percentage, final MathContext mc) {
+        BigDecimal percentageOf = BigDecimal.ZERO;
+        if (isGreaterThanZero(value)) {
+            final BigDecimal multiplicand = percentage.divide(BigDecimal.valueOf(100L), mc);
+            percentageOf = value.multiply(multiplicand, mc);
+        }
+        return percentageOf;
+    }
+
+    /**
+     * Remove unused zeros from end of BigDecimal fraction and keep the format "0.0"
+     *
+     * @param value
+     * @return
+     */
+    public static BigDecimal stripTrailingZeros(final BigDecimal value) {
+        return value == null ? null : new BigDecimal(value.stripTrailingZeros().toPlainString());
+    }
 }
